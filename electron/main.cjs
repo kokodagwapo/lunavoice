@@ -7,6 +7,7 @@ const crypto = require("node:crypto");
 const dotenv = require("dotenv");
 const { phase2ToolSpecs, handlePhase2Tool } = require("./phase2-tools.cjs");
 const { connectorToolSpecs, handleConnectorTool, getSecret } = require("./connectors/index.cjs");
+const agents = require("./agents.cjs");
 
 dotenv.config({ path: path.join(process.cwd(), ".env.local") });
 
@@ -640,6 +641,52 @@ ipcMain.handle("secrets:set", async (_event, key, value) => {
 
 ipcMain.handle("secrets:delete", async (_event, key) => {
   return await connectors.deleteSecret(key);
+});
+
+// Agent IPC handlers
+ipcMain.handle("agents:list", async () => {
+  return await agents.listAgents();
+});
+
+ipcMain.handle("agents:get-active", async () => {
+  return await agents.getActiveAgent();
+});
+
+ipcMain.handle("agents:set-active", async (_event, agentId) => {
+  return await agents.setActiveAgent(agentId);
+});
+
+ipcMain.handle("agents:create", async (_event, agentData) => {
+  return await agents.createAgent(agentData);
+});
+
+ipcMain.handle("agents:update", async (_event, agentId, updates) => {
+  return await agents.updateAgent(agentId, updates);
+});
+
+ipcMain.handle("agents:delete", async (_event, agentId) => {
+  return await agents.deleteAgent(agentId);
+});
+
+// Conversation IPC handlers
+ipcMain.handle("conversations:list", async (_event, agentId) => {
+  return await agents.listConversations(agentId);
+});
+
+ipcMain.handle("conversations:get", async (_event, conversationId) => {
+  return await agents.getConversation(conversationId);
+});
+
+ipcMain.handle("conversations:create", async (_event, agentId, agentName) => {
+  return await agents.createConversation(agentId, agentName);
+});
+
+ipcMain.handle("conversations:add-message", async (_event, conversationId, role, text) => {
+  return await agents.addMessage(conversationId, role, text);
+});
+
+ipcMain.handle("conversations:delete", async (_event, conversationId) => {
+  return await agents.deleteConversation(conversationId);
 });
 
 ipcMain.handle("tools:execute", async (_event, toolCall) => {

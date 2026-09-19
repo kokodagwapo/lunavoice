@@ -72,6 +72,44 @@ export type SecretInfo = {
   encrypted: boolean;
 };
 
+export type Agent = {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  systemPrompt: string;
+  accent: string;
+  icon: string;
+  isDefault: boolean;
+};
+
+export type ConversationSummary = {
+  id: string;
+  title: string;
+  agentId: string;
+  agentName: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+};
+
+export type ConversationMessage = {
+  id: string;
+  role: "user" | "luna" | "system";
+  text: string;
+  timestamp: string;
+};
+
+export type Conversation = {
+  id: string;
+  title: string;
+  agentId: string;
+  agentName: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ConversationMessage[];
+};
+
 declare global {
   interface Window {
     luna: {
@@ -88,6 +126,19 @@ declare global {
       listSecrets: () => Promise<SecretInfo[]>;
       setSecret: (key: string, value: string) => Promise<{ ok: boolean }>;
       deleteSecret: (key: string) => Promise<{ ok: boolean }>;
+      // Agent APIs
+      listAgents: () => Promise<{ agents: Agent[]; activeAgentId: string }>;
+      getActiveAgent: () => Promise<Agent>;
+      setActiveAgent: (agentId: string) => Promise<{ ok: boolean; agent?: Agent }>;
+      createAgent: (data: Partial<Agent>) => Promise<{ ok: boolean; agent?: Agent }>;
+      updateAgent: (agentId: string, updates: Partial<Agent>) => Promise<{ ok: boolean; agent?: Agent }>;
+      deleteAgent: (agentId: string) => Promise<{ ok: boolean; error?: string }>;
+      // Conversation APIs
+      listConversations: (agentId?: string) => Promise<ConversationSummary[]>;
+      getConversation: (conversationId: string) => Promise<Conversation | null>;
+      createConversation: (agentId: string, agentName: string) => Promise<Conversation>;
+      addMessage: (conversationId: string, role: string, text: string) => Promise<ConversationMessage | null>;
+      deleteConversation: (conversationId: string) => Promise<{ ok: boolean }>;
     };
   }
 }
