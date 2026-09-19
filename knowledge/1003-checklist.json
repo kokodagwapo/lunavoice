@@ -1,0 +1,105 @@
+{
+  "title": "Uniform Residential Loan Application (1003) Checklist",
+  "disclaimer": "This checklist is for guidance only. Never invent or guess personal information like SSN, income, or account numbers.",
+  "sections": [
+    {
+      "id": "borrower_info",
+      "name": "Section 1: Borrower Information",
+      "items": [
+        { "id": "legal_name", "label": "Full legal name", "required": true, "type": "text" },
+        { "id": "ssn", "label": "Social Security Number", "required": true, "type": "ssn", "sensitive": true, "note": "Borrower must provide directly" },
+        { "id": "dob", "label": "Date of birth", "required": true, "type": "date" },
+        { "id": "citizenship", "label": "Citizenship status", "required": true, "type": "select", "options": ["U.S. Citizen", "Permanent Resident Alien", "Non-Permanent Resident Alien"] },
+        { "id": "current_address", "label": "Current street address", "required": true, "type": "address" },
+        { "id": "time_at_address", "label": "Time at current address", "required": true, "type": "duration" },
+        { "id": "housing_type", "label": "Housing status", "required": true, "type": "select", "options": ["Own", "Rent", "No primary housing expense"] },
+        { "id": "monthly_housing", "label": "Monthly rent/housing expense", "required": true, "type": "currency" },
+        { "id": "phone", "label": "Phone number", "required": true, "type": "phone" },
+        { "id": "email", "label": "Email address", "required": true, "type": "email" }
+      ]
+    },
+    {
+      "id": "assets",
+      "name": "Section 2: Assets",
+      "items": [
+        { "id": "checking_accounts", "label": "Checking account(s) with balances", "required": true, "type": "accounts" },
+        { "id": "savings_accounts", "label": "Savings account(s) with balances", "required": false, "type": "accounts" },
+        { "id": "retirement_accounts", "label": "Retirement accounts (401k, IRA)", "required": false, "type": "accounts" },
+        { "id": "other_assets", "label": "Other assets (stocks, bonds, real estate)", "required": false, "type": "text" },
+        { "id": "gift_funds", "label": "Gift funds for down payment", "required": false, "type": "currency", "note": "Requires gift letter" }
+      ]
+    },
+    {
+      "id": "liabilities",
+      "name": "Section 2: Liabilities",
+      "items": [
+        { "id": "credit_cards", "label": "Credit card balances and payments", "required": true, "type": "debts" },
+        { "id": "auto_loans", "label": "Auto loan balances and payments", "required": false, "type": "debts" },
+        { "id": "student_loans", "label": "Student loan balances and payments", "required": false, "type": "debts" },
+        { "id": "other_debts", "label": "Other debts (personal loans, etc.)", "required": false, "type": "debts" },
+        { "id": "alimony_support", "label": "Alimony or child support obligations", "required": false, "type": "currency" }
+      ]
+    },
+    {
+      "id": "property",
+      "name": "Section 4: Property Information",
+      "items": [
+        { "id": "property_address", "label": "Property address", "required": true, "type": "address" },
+        { "id": "purchase_price", "label": "Purchase price", "required": true, "type": "currency" },
+        { "id": "property_type", "label": "Property type", "required": true, "type": "select", "options": ["Single Family", "Condo", "Townhouse", "2-4 Units", "Manufactured Home"] },
+        { "id": "occupancy", "label": "Occupancy type", "required": true, "type": "select", "options": ["Primary Residence", "Second Home", "Investment Property"] },
+        { "id": "loan_purpose", "label": "Loan purpose", "required": true, "type": "select", "options": ["Purchase", "Refinance - Rate/Term", "Refinance - Cash Out"] }
+      ]
+    },
+    {
+      "id": "employment",
+      "name": "Section 5: Employment",
+      "items": [
+        { "id": "employer_name", "label": "Current employer name", "required": true, "type": "text" },
+        { "id": "employer_address", "label": "Employer address", "required": true, "type": "address" },
+        { "id": "employer_phone", "label": "Employer phone", "required": true, "type": "phone" },
+        { "id": "job_title", "label": "Position/title", "required": true, "type": "text" },
+        { "id": "start_date", "label": "Employment start date", "required": true, "type": "date" },
+        { "id": "self_employed", "label": "Self-employed?", "required": true, "type": "boolean" }
+      ]
+    },
+    {
+      "id": "income",
+      "name": "Section 5: Income",
+      "items": [
+        { "id": "base_income", "label": "Base monthly income (gross)", "required": true, "type": "currency" },
+        { "id": "overtime", "label": "Overtime (monthly average)", "required": false, "type": "currency" },
+        { "id": "bonus", "label": "Bonus (monthly average)", "required": false, "type": "currency" },
+        { "id": "commission", "label": "Commission (monthly average)", "required": false, "type": "currency" },
+        { "id": "other_income", "label": "Other income (source and amount)", "required": false, "type": "text" }
+      ]
+    },
+    {
+      "id": "declarations",
+      "name": "Section 6: Declarations",
+      "items": [
+        { "id": "judgments", "label": "Outstanding judgments?", "required": true, "type": "boolean" },
+        { "id": "delinquent_debt", "label": "Delinquent on federal debt?", "required": true, "type": "boolean" },
+        { "id": "bankruptcy", "label": "Bankruptcy in past 7 years?", "required": true, "type": "boolean" },
+        { "id": "foreclosure", "label": "Foreclosure in past 7 years?", "required": true, "type": "boolean" },
+        { "id": "down_payment_borrowed", "label": "Any down payment borrowed?", "required": true, "type": "boolean" }
+      ]
+    },
+    {
+      "id": "military",
+      "name": "Section 7: Military Service",
+      "items": [
+        { "id": "military_service", "label": "Currently or ever served in U.S. military?", "required": true, "type": "boolean" },
+        { "id": "service_type", "label": "Type of service", "required": false, "type": "select", "options": ["Active Duty", "Reserve", "National Guard", "Veteran"], "conditional": "military_service" }
+      ]
+    }
+  ],
+  "documents": [
+    { "id": "photo_id", "label": "Government-issued photo ID", "required": true },
+    { "id": "pay_stubs", "label": "Pay stubs (most recent 30 days)", "required": true },
+    { "id": "w2s", "label": "W-2s (2 years)", "required": true },
+    { "id": "tax_returns", "label": "Tax returns (2 years)", "required": false, "note": "Required if self-employed" },
+    { "id": "bank_statements", "label": "Bank statements (2 months, all pages)", "required": true },
+    { "id": "gift_letter", "label": "Gift letter and donor bank statement", "required": false, "conditional": "gift_funds" }
+  ]
+}

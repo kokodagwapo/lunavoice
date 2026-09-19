@@ -5,4 +5,6 @@ contextBridge.exposeInMainWorld("luna", {
   executeTool: (toolCall) => ipcRenderer.invoke("tools:execute", toolCall),
   getToolSpecs: () => ipcRenderer.invoke("tools:list"),
   restart: () => ipcRenderer.invoke("app:restart"),
+  selectFiles: () => ipcRenderer.invoke("file:select"),
+  uploadFile: (filePath) => ipcRenderer.invoke("file:upload", filePath),
 });

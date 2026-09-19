@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, nativeImage, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, nativeImage, screen, dialog } = require("electron");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const crypto = require("node:crypto");
 const dotenv = require("dotenv");
+const { phase2ToolSpecs, handlePhase2Tool } = require("./phase2-tools.cjs");
 
 dotenv.config({ path: path.join(process.cwd(), ".env.local") });
 
@@ -553,7 +554,7 @@ function setWindowMode(mode) {
   }
 }
 
-ipcMain.handle("tools:list", () => toolSpecs);
+ipcMain.handle("tools:list", () => [...toolSpecs, ...phase2ToolSpecs]);
 
 ipcMain.handle("realtime:get-config", async () => {
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY;
@@ -588,11 +589,38 @@ ipcMain.handle("app:restart", () => {
   app.exit(0);
 });
 
+ipcMain.handle("file:select", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      { name: "Documents", extensions: ["csv", "xlsx", "xls", "pdf", "doc", "docx", "txt", "md", "json"] },
+      { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+  return result.canceled ? [] : result.filePaths;
+});
+
+ipcMain.handle("file:upload", async (_event, filePath) => {
+  const uploadsDir = path.join(dataDir, "uploads");
+  await fs.mkdir(uploadsDir, { recursive: true });
+  const fileName = path.basename(filePath);
+  const destPath = path.join(uploadsDir, `${crypto.randomUUID()}-${fileName}`);
+  await fs.copyFile(filePath, destPath);
+  return { path: destPath, name: fileName };
+});
+
 ipcMain.handle("tools:execute", async (_event, toolCall) => {
   const name = String(toolCall?.name || "");
   const args = asObject(toolCall?.arguments);
 
   try {
+    // Check Phase 2 tools first
+    const phase2Result = await handlePhase2Tool(name, args);
+    if (phase2Result !== null) {
+      return phase2Result;
+    }
+
     if (name === "set_mode") {
       currentMode = args.mode === "computer" ? "computer" : "display";
       setWindowMode(currentMode);

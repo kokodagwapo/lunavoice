@@ -3,14 +3,16 @@ import {
   Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, 
   Plus, History, Settings, Bell, User,
   PanelRight, RotateCcw, X, Search, Clock, Folder,
-  MessageSquare, ChevronRight
+  MessageSquare, ChevronRight, FileText, Brain, ClipboardCheck,
+  Upload, Paperclip
 } from "lucide-react";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LunaFace } from "./components/LunaFace";
 import { newEntry, LunaRealtimeClient, type MouthShape, type LunaConnectionState, type LunaMood, type TranscriptEntry } from "./lib/realtime";
-import type { LunaArtifact } from "./vite-env";
+import type { LunaArtifact, UploadedFile } from "./vite-env";
 
 type LunaMode = "display" | "computer";
+type LeftTab = "timeline" | "memory" | "checklist";
 
 export default function App() {
   const [connectionState, setConnectionState] = useState<LunaConnectionState>("idle");
@@ -26,7 +28,9 @@ export default function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(80);
   const [textPrompt, setTextPrompt] = useState("");
-  const [activeTab, setActiveTab] = useState<"timeline" | "project">("timeline");
+  const [activeTab, setActiveTab] = useState<LeftTab>("timeline");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const clientRef = useRef<LunaRealtimeClient | null>(null);
 
   const isConnected = connectionState === "connected";
@@ -66,6 +70,59 @@ export default function App() {
     if (!trimmed) return;
     clientRef.current?.sendText(trimmed);
     setTextPrompt("");
+  }
+
+  async function handleFileUpload() {
+    try {
+      setIsUploading(true);
+      const filePaths = await window.luna.selectFiles();
+      if (filePaths.length === 0) {
+        setIsUploading(false);
+        return;
+      }
+      
+      const uploaded: UploadedFile[] = [];
+      for (const filePath of filePaths) {
+        const file = await window.luna.uploadFile(filePath);
+        uploaded.push(file);
+        
+        // Parse the file and show in artifact panel
+        const result = await window.luna.executeTool({
+          name: "file_parse",
+          arguments: { filePath: file.path, fileName: file.name },
+        });
+        
+        if (result.artifact) {
+          setArtifact(result.artifact);
+          setShowRightPanel(true);
+        }
+        
+        setTranscript((items) => [
+          newEntry("system", `Uploaded: ${file.name}`),
+          ...items,
+        ].slice(0, 80));
+      }
+      
+      setUploadedFiles((prev) => [...uploaded, ...prev]);
+    } catch (error) {
+      setTranscript((items) => [
+        newEntry("system", `Upload failed: ${error instanceof Error ? error.message : String(error)}`),
+        ...items,
+      ].slice(0, 80));
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  async function handleQuickAction(action: string) {
+    const result = await window.luna.executeTool({
+      name: action,
+      arguments: {},
+    });
+    if (result.artifact) {
+      setArtifact(result.artifact);
+      setShowRightPanel(true);
+    }
   }
 
   const conversationChats = transcript.filter(t => t.role !== "system").slice(0, 10);
@@ -117,21 +174,30 @@ export default function App() {
               <div className="flex gap-1 p-1 bg-black/5 rounded-xl">
                 <button 
                   onClick={() => setActiveTab("timeline")}
-                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
                     activeTab === "timeline" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  <Clock size={14} />
-                  Timeline
+                  <Clock size={12} />
+                  Chats
                 </button>
                 <button 
-                  onClick={() => setActiveTab("project")}
-                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition-all ${
-                    activeTab === "project" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  onClick={() => setActiveTab("memory")}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
+                    activeTab === "memory" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  <Folder size={14} />
-                  Project
+                  <Brain size={12} />
+                  Memory
+                </button>
+                <button 
+                  onClick={() => setActiveTab("checklist")}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
+                    activeTab === "checklist" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <ClipboardCheck size={12} />
+                  1003
                 </button>
               </div>
             </div>
@@ -145,30 +211,107 @@ export default function App() {
               </div>
             </div>
 
-            {/* Chats List */}
+            {/* Tab Content */}
             <div className="flex-1 overflow-auto px-2">
-              <div className="px-2 py-2">
-                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Your Chats</span>
-              </div>
-              {conversationChats.length > 0 ? (
-                <div className="space-y-1">
-                  {conversationChats.map((chat) => (
-                    <button 
-                      key={chat.id}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all group"
+              {activeTab === "timeline" && (
+                <>
+                  <div className="px-2 py-2">
+                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Your Chats</span>
+                  </div>
+                  {conversationChats.length > 0 ? (
+                    <div className="space-y-1">
+                      {conversationChats.map((chat) => (
+                        <button 
+                          key={chat.id}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all group"
+                        >
+                          <MessageSquare size={16} className="text-gray-400 flex-shrink-0" />
+                          <span className="text-sm text-gray-700 truncate flex-1">
+                            {chat.text.slice(0, 40)}{chat.text.length > 40 ? "..." : ""}
+                          </span>
+                          <span className="text-xs text-gray-400">{chat.at}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-8 text-center text-sm text-gray-400">
+                      No conversations yet
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeTab === "memory" && (
+                <>
+                  <div className="px-2 py-2">
+                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Memory & Knowledge</span>
+                  </div>
+                  <div className="space-y-2 p-2">
+                    <button
+                      onClick={() => handleQuickAction("memory_list")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
                     >
-                      <MessageSquare size={16} className="text-gray-400 flex-shrink-0" />
-                      <span className="text-sm text-gray-700 truncate flex-1">
-                        {chat.text.slice(0, 40)}{chat.text.length > 40 ? "..." : ""}
-                      </span>
-                      <span className="text-xs text-gray-400">{chat.at}</span>
+                      <Brain size={16} className="text-purple-500" />
+                      <span className="text-sm text-gray-700">View Memories</span>
                     </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="px-3 py-8 text-center text-sm text-gray-400">
-                  No conversations yet
-                </div>
+                    <button
+                      onClick={() => handleQuickAction("kb_topics")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
+                    >
+                      <FileText size={16} className="text-blue-500" />
+                      <span className="text-sm text-gray-700">Knowledge Base</span>
+                    </button>
+                    {uploadedFiles.length > 0 && (
+                      <>
+                        <div className="px-1 pt-2 pb-1">
+                          <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Uploaded Files</span>
+                        </div>
+                        {uploadedFiles.slice(0, 5).map((file, i) => (
+                          <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/40 text-sm text-gray-600">
+                            <Paperclip size={14} />
+                            <span className="truncate">{file.name}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {activeTab === "checklist" && (
+                <>
+                  <div className="px-2 py-2">
+                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Loan Application</span>
+                  </div>
+                  <div className="space-y-2 p-2">
+                    <button
+                      onClick={() => handleQuickAction("checklist_status")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
+                    >
+                      <ClipboardCheck size={16} className="text-green-500" />
+                      <span className="text-sm text-gray-700">View Progress</span>
+                    </button>
+                    <button
+                      onClick={() => handleQuickAction("checklist_next")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
+                    >
+                      <ChevronRight size={16} className="text-blue-500" />
+                      <span className="text-sm text-gray-700">Continue 1003</span>
+                    </button>
+                    <button
+                      onClick={() => handleQuickAction("checklist_reset")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all text-amber-600"
+                    >
+                      <RotateCcw size={16} />
+                      <span className="text-sm">Reset Checklist</span>
+                    </button>
+                    <div className="mt-4 p-3 rounded-xl bg-blue-50 text-xs text-blue-700">
+                      <strong>1003 Assistant</strong><br/>
+                      Walk through the Uniform Residential Loan Application step by step. 
+                      Upload documents for OCR extraction.
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -221,8 +364,17 @@ export default function App() {
           {/* Floating Input Bar */}
           <div className="w-full max-w-xl px-4">
             <div className="glass rounded-full p-2 flex items-center gap-2 shadow-glass-lg">
-              <button className="w-10 h-10 rounded-full bg-white/60 hover:bg-white flex items-center justify-center text-gray-500 transition-all">
-                <Plus size={20} />
+              <button 
+                onClick={handleFileUpload}
+                disabled={isUploading}
+                className="w-10 h-10 rounded-full bg-white/60 hover:bg-white flex items-center justify-center text-gray-500 transition-all disabled:opacity-50"
+                title="Upload file (CSV, PDF, DOCX, images)"
+              >
+                {isUploading ? (
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Plus size={20} />
+                )}
               </button>
               
               <input

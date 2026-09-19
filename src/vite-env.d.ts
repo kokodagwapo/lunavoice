@@ -47,6 +47,11 @@ export type ElevenLabsRealtimeConfig = {
 
 export type LunaRealtimeConfig = ElevenLabsRealtimeConfig;
 
+export type UploadedFile = {
+  path: string;
+  name: string;
+};
+
 declare global {
   interface Window {
     luna: {
@@ -54,6 +59,8 @@ declare global {
       executeTool: (toolCall: LunaToolCall) => Promise<LunaToolResult>;
       getToolSpecs: () => Promise<LunaToolSpec[]>;
       restart: () => Promise<void>;
+      selectFiles: () => Promise<string[]>;
+      uploadFile: (filePath: string) => Promise<UploadedFile>;
     };
   }
 }

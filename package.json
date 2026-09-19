@@ -64,11 +64,17 @@
     }
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "dotenv": "^17.4.2",
     "lucide-react": "^1.47.0",
+    "mammoth": "^1.12.3",
     "mermaid": "^11.16.0",
+    "papaparse": "^5.7.0",
+    "pdf-parse": "^2.4.5",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
