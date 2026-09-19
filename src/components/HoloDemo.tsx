@@ -179,14 +179,6 @@ export function HoloDemo({ onClose, embedded = false }: HoloDemoProps) {
           }}
         />
 
-        {/* Radial glow behind avatar */}
-        <div 
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 40%, transparent 70%)",
-          }}
-        />
-
         {/* Singularity Horizon */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-72 h-72">
           <SingularityHorizon 
