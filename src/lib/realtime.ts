@@ -51,9 +51,28 @@ export class LunaRealtimeClient {
   private audioQueue: ArrayBuffer[] = [];
   private isPlayingAudio = false;
   private mediaRecorder: MediaRecorder | null = null;
+  private micMuted = false;
+  private outputVolumePercent = 80;
+  private outputGain: GainNode | null = null;
 
   constructor(callbacks: RealtimeCallbacks) {
     this.callbacks = callbacks;
+  }
+
+  setMicMuted(muted: boolean): void {
+    this.micMuted = muted;
+    if (this.micStream) {
+      for (const track of this.micStream.getAudioTracks()) {
+        track.enabled = !muted;
+      }
+    }
+  }
+
+  setOutputVolume(percent: number): void {
+    this.outputVolumePercent = Math.min(100, Math.max(0, percent));
+    if (this.outputGain) {
+      this.outputGain.gain.value = this.outputVolumePercent / 100;
+    }
   }
 
   async connect(): Promise<void> {
@@ -139,7 +158,7 @@ export class LunaRealtimeClient {
     const SILENCE_FRAMES_TO_STOP = 20;
 
     processor.onaudioprocess = (event) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.micMuted) return;
 
       const inputData = event.inputBuffer.getChannelData(0);
       
@@ -180,6 +199,7 @@ export class LunaRealtimeClient {
 
     source.connect(processor);
     processor.connect(audioContext.destination);
+    this.setMicMuted(this.micMuted);
   }
 
   private async handleElevenLabsMessage(msg: ElevenLabsMessage): Promise<void> {
@@ -242,11 +262,14 @@ export class LunaRealtimeClient {
 
     if (!this.playbackContext || this.playbackContext.state === "closed") {
       this.playbackContext = new AudioContext({ sampleRate: 16000 });
+      this.outputGain = this.playbackContext.createGain();
+      this.outputGain.gain.value = this.outputVolumePercent / 100;
+      this.outputGain.connect(this.playbackContext.destination);
     }
 
     const analyser = this.playbackContext.createAnalyser();
     analyser.fftSize = 1024;
-    analyser.connect(this.playbackContext.destination);
+    analyser.connect(this.outputGain ?? this.playbackContext.destination);
 
     this.startMouthAnimation(analyser);
 
