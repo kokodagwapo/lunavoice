@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { 
   Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, 
   Plus, History, Settings, Bell, User,
@@ -9,6 +9,8 @@ import {
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LunaFace } from "./components/LunaFace";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { HoloDemo } from "./components/HoloDemo";
+import { HoloDataCards, parseResponseToCards, type HoloCard } from "./components/HoloDataCards";
 import { newEntry, LunaRealtimeClient, type MouthShape, type LunaConnectionState, type LunaMood, type TranscriptEntry } from "./lib/realtime";
 import type { LunaArtifact, UploadedFile } from "./vite-env";
 
@@ -33,7 +35,20 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHoloDemo, setShowHoloDemo] = useState(false);
+  const [holoCards, setHoloCards] = useState<HoloCard[]>([]);
   const clientRef = useRef<LunaRealtimeClient | null>(null);
+
+  // Add holo cards when we get structured data
+  const addHoloCards = useCallback((cards: HoloCard[]) => {
+    if (cards.length > 0) {
+      setHoloCards(prev => [...prev, ...cards]);
+    }
+  }, []);
+
+  const clearHoloCards = useCallback(() => {
+    setHoloCards([]);
+  }, []);
 
   const isConnected = connectionState === "connected";
   const isConnecting = connectionState === "connecting";
@@ -47,6 +62,11 @@ export default function App() {
       onArtifact: (nextArtifact) => {
         setArtifact(nextArtifact);
         setShowRightPanel(true);
+        // Generate holo cards for structured data
+        if (nextArtifact?.content) {
+          const cards = parseResponseToCards(nextArtifact.content, nextArtifact.kind);
+          addHoloCards(cards);
+        }
       },
       onMode: (nextMode) => setMode(nextMode),
       onStatus: (message) => setTranscript((items) => [newEntry("system", message), ...items].slice(0, 80)),
@@ -141,6 +161,14 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2 window-no-drag">
+          <button 
+            onClick={() => setShowHoloDemo(true)}
+            className="h-9 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 flex items-center gap-2 text-white text-sm font-medium transition-all shadow-lg shadow-blue-500/25"
+            title="Open Holographic Demo"
+          >
+            <span className="text-base">✨</span>
+            Holo Demo
+          </button>
           <button className="w-9 h-9 rounded-xl glass flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/80 transition-all">
             <Bell size={18} />
           </button>
@@ -554,6 +582,11 @@ export default function App() {
 
       {/* Settings Panel */}
       <SettingsPanel visible={showSettings} onClose={() => setShowSettings(false)} />
+
+      {/* Holographic Demo */}
+      {showHoloDemo && (
+        <HoloDemo onClose={() => setShowHoloDemo(false)} />
+      )}
     </div>
   );
 }
