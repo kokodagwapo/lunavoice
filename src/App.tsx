@@ -1,25 +1,16 @@
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState } from "react";
 import { 
   Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, 
-  Send, Plus, History, Settings, Bell, User,
+  Plus, History, Settings, Bell, User,
   PanelRight, RotateCcw, X, Search, Clock, Folder,
   MessageSquare, ChevronRight
 } from "lucide-react";
 import { ArtifactPanel } from "./components/ArtifactPanel";
-import SingularityHorizon, { type SingularityState } from "./components/ui/singularity-horizon";
+import { LunaFace } from "./components/LunaFace";
 import { newEntry, LunaRealtimeClient, type MouthShape, type LunaConnectionState, type LunaMood, type TranscriptEntry } from "./lib/realtime";
 import type { LunaArtifact } from "./vite-env";
 
 type LunaMode = "display" | "computer";
-
-const MOOD_STATES: Record<LunaMood, SingularityState> = {
-  idle: { name: "STANDBY", coreIntensity: 0.8, diskSpeed: 0.2, particleSpeed: 0.3, colorShift: 0.0, pulseRate: 0.8, turbulence: 0.05 },
-  listening: { name: "LISTENING", coreIntensity: 1.2, diskSpeed: 0.4, particleSpeed: 0.6, colorShift: 0.3, pulseRate: 1.5, turbulence: 0.15 },
-  thinking: { name: "PROCESSING", coreIntensity: 1.5, diskSpeed: 0.6, particleSpeed: 0.8, colorShift: 0.5, pulseRate: 2.0, turbulence: 0.3 },
-  speaking: { name: "TRANSMITTING", coreIntensity: 1.8, diskSpeed: 0.8, particleSpeed: 1.0, colorShift: 0.7, pulseRate: 2.5, turbulence: 0.4 },
-  working: { name: "COMPUTING", coreIntensity: 2.0, diskSpeed: 1.0, particleSpeed: 1.2, colorShift: 0.8, pulseRate: 3.0, turbulence: 0.5 },
-  error: { name: "ALERT", coreIntensity: 2.5, diskSpeed: 1.5, particleSpeed: 1.5, colorShift: 1.0, pulseRate: 4.0, turbulence: 0.8 },
-};
 
 export default function App() {
   const [connectionState, setConnectionState] = useState<LunaConnectionState>("idle");
@@ -40,7 +31,6 @@ export default function App() {
 
   const isConnected = connectionState === "connected";
   const isConnecting = connectionState === "connecting";
-  const singularityState = useMemo(() => MOOD_STATES[mood] || MOOD_STATES.idle, [mood]);
 
   async function connect() {
     const client = new LunaRealtimeClient({
@@ -214,19 +204,8 @@ export default function App() {
             </button>
           )}
 
-          {/* Singularity Card */}
-          <div className="singularity-card w-64 h-64 mb-8 shadow-glass-lg">
-            <SingularityHorizon
-              width="100%"
-              height="100%"
-              particles={3000}
-              hud={true}
-              interactive={true}
-              hudTitle="LUNA"
-              hudSubtitle={isConnected ? singularityState.name : "READY"}
-              state={singularityState}
-            />
-          </div>
+          {/* Luna Avatar */}
+          <LunaFace mood={mood} size="large" className="mb-6" />
 
           {/* Hero Text */}
           <h1 className="text-4xl md:text-5xl font-light text-gray-300 text-center mb-2 tracking-tight">
