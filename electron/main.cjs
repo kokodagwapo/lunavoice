@@ -943,8 +943,10 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
     }
 
     if (name === "computer_open_app") {
-      await execFileAsync("open", ["-a", String(args.appName || "")]);
-      return { ok: true, message: `Opened ${args.appName}.` };
+      const appName = String(args.appName || "");
+      await execFileAsync("open", ["-a", appName]);
+      await execFileAsync("osascript", ["-e", `tell application ${appleScriptString(appName)} to activate`]);
+      return { ok: true, message: `Opened and activated ${appName}.` };
     }
 
     if (name === "computer_type_text") {
@@ -1014,8 +1016,21 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
       const amount = Math.max(1, Math.min(20, Number(args.amount || 4)));
       const keyByDirection = { up: 126, down: 125, left: 123, right: 124 };
       const keyCode = keyByDirection[direction] || 125;
-      await execFileAsync("osascript", ["-e", `tell application "System Events" to repeat ${amount} times\nkey code ${keyCode}\nend repeat`]);
-      return { ok: true, message: `Scrolled ${direction}.` };
+      try {
+        await execFileAsync("osascript", ["-e", `tell application "System Events" to repeat ${amount} times\nkey code ${keyCode}\nend repeat`]);
+        return { ok: true, message: `Scrolled ${direction}.` };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes("not allowed") || errorMsg.includes("assistive access") || errorMsg.includes("1002")) {
+          return {
+            ok: false,
+            permissionDenied: true,
+            error: "Accessibility permission required to scroll.",
+            artifact: { title: "Permission Required", kind: "markdown", content: accessibilityFixSteps() },
+          };
+        }
+        throw error;
+      }
     }
 
     if (name === "screen_snapshot") {
