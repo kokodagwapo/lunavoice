@@ -6,6 +6,7 @@ const fs = require("node:fs/promises");
 const crypto = require("node:crypto");
 const dotenv = require("dotenv");
 const { phase2ToolSpecs, handlePhase2Tool } = require("./phase2-tools.cjs");
+const { advancedToolSpecs, handleAdvancedTool } = require("./phase2-advanced.cjs");
 const { connectorToolSpecs, handleConnectorTool, getSecret } = require("./connectors/index.cjs");
 const agents = require("./agents.cjs");
 
@@ -633,7 +634,7 @@ function setWindowMode(mode) {
   }
 }
 
-ipcMain.handle("tools:list", () => [...toolSpecs, ...phase2ToolSpecs, ...connectorToolSpecs]);
+ipcMain.handle("tools:list", () => [...toolSpecs, ...phase2ToolSpecs, ...advancedToolSpecs, ...connectorToolSpecs]);
 
 ipcMain.handle("realtime:get-config", async () => {
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY;
@@ -775,6 +776,12 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
     const phase2Result = await handlePhase2Tool(name, args);
     if (phase2Result !== null) {
       return phase2Result;
+    }
+
+    // Check Phase 2 advanced tools
+    const advancedResult = await handleAdvancedTool(name, args);
+    if (advancedResult !== null) {
+      return advancedResult;
     }
 
     // Check connector tools

@@ -207,7 +207,14 @@ If computer tools fail with permission errors, Luna will show instructions to fi
 | Secure API key management | ✅ Done |
 | Settings panel | ✅ Done |
 | Computer use mode + permission check | ✅ Done |
-| App connectors (Gmail, Encompass, REST) | 🔲 Stub |
+| **Daily briefing** | ✅ Done |
+| **Mobile/PWA support** | ✅ Done (manifest + service worker) |
+| **Secure vault** | ✅ Done (encrypted storage + audit log) |
+| **Scheduled reports** | ✅ Done (schedule stub; manual generate works) |
+| **Negotiation coach** | ✅ Done |
+| **Decision learning loop** | ✅ Done (log/analyze/suggest) |
+| **Holographic cards on live data** | ✅ Done |
+| App connectors (Gmail, Encompass, REST) | 🔲 Stub (requires OAuth)
 
 ### LOS API Knowledge
 
@@ -222,6 +229,66 @@ Luna includes educational knowledge about major LOS platforms and their APIs:
 Ask Luna: "How do I integrate with Encompass?" or "What's the auth pattern for Calyx Point?"
 
 *Note: This is educational guidance. Always verify against official vendor documentation.*
+
+### Daily Briefing
+
+Get a daily overview with market rates, pipeline status (when LOS connected), compliance calendar, and news suggestions:
+
+```
+Ask Luna: "Give me my daily briefing"
+Tool: daily_briefing
+```
+
+### Secure Vault
+
+Encrypted local storage for sensitive documents, SOPs, and credentials:
+
+- **Encrypted storage** - Uses Electron `safeStorage` (OS keychain) when available
+- **Full-text search** - Search vault items by title, category, or tags
+- **Audit log** - Track all vault access for compliance
+- **Tools**: `vault_store`, `vault_retrieve`, `vault_search`, `vault_list`, `vault_delete`, `vault_audit`
+
+### Scheduled Reports
+
+Generate and schedule reports (pipeline, compliance, board):
+
+- **Manual generation**: `report_generate` with type `pipeline`, `compliance`, or `board`
+- **Schedule** (stub): `report_schedule` to configure automatic generation
+- **Saved to**: `~/Documents/SmartStart/`
+- **Email** (stub): Requires Gmail connector for email delivery
+
+### Negotiation Coach
+
+Get talking points, objection responses, and strategies for common lending scenarios:
+
+```
+Ask Luna: "Help me with a rate objection"
+Tool: negotiation_coach with scenario: "rate_objection"
+```
+
+Scenarios: `rate_objection`, `fee_negotiation`, `closing_timeline`, `competitor_comparison`
+
+### Decision Learning Loop
+
+Log decisions with reasoning, track outcomes, and get suggestions based on patterns:
+
+- **Log decisions**: `decision_log` with decision, reasoning, category
+- **Update outcomes**: `decision_update_outcome` to record results
+- **Analyze patterns**: `decision_analyze` to see success rates
+- **Get suggestions**: `decision_suggest` based on similar past decisions
+
+### Mobile/PWA Support
+
+SmartStart can be installed as a Progressive Web App on mobile devices:
+
+1. Open the web version in Chrome/Safari
+2. Click "Add to Home Screen" or "Install App"
+3. The app works offline for basic navigation (voice requires connection)
+
+PWA features:
+- Manifest with icons and theme colors
+- Service worker for offline caching
+- Responsive design for mobile screens
 
 ### Connector Framework
 

@@ -175,7 +175,14 @@ export default function App() {
       for (const filePath of filePaths) {
         const file = await window.luna.uploadFile(filePath);
         const result = await window.luna.executeTool({ name: "file_parse", arguments: { filePath: file.path, fileName: file.name } });
-        if (result.artifact) { setArtifact(result.artifact); setRightCollapsed(false); }
+        if (result.artifact) { 
+          setArtifact(result.artifact); 
+          setRightCollapsed(false);
+          if (result.artifact.content) {
+            const cards = parseResponseToCards(result.artifact.content, result.artifact.kind);
+            addHoloCards(cards);
+          }
+        }
         setTranscript((items) => [newEntry("system", `Uploaded: ${file.name}`), ...items].slice(0, 80));
       }
     } catch (error) {
@@ -183,9 +190,17 @@ export default function App() {
     } finally { setIsUploading(false); }
   }
 
-  async function handleQuickAction(action: string) {
-    const result = await window.luna.executeTool({ name: action, arguments: {} });
-    if (result.artifact) { setArtifact(result.artifact); setRightCollapsed(false); }
+  async function handleQuickAction(action: string, args: Record<string, unknown> = {}) {
+    const result = await window.luna.executeTool({ name: action, arguments: args });
+    if (result.artifact) { 
+      setArtifact(result.artifact); 
+      setRightCollapsed(false); 
+      // Wire holo cards to live structured responses
+      if (result.artifact.content) {
+        const cards = parseResponseToCards(result.artifact.content, result.artifact.kind);
+        addHoloCards(cards);
+      }
+    }
   }
 
   const singularityState = DEFAULT_SINGULARITY_STATES[MOOD_TO_STATE[mood] || 0];

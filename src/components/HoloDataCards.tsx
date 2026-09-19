@@ -402,6 +402,89 @@ export function parseResponseToCards(
         kind: "stat",
       });
     }
+
+    // Vault items
+    if (Array.isArray(obj.items) && (obj.items as Array<{category?: string}>)[0]?.category) {
+      cards.push({
+        id: id(),
+        title: "Secure Vault",
+        lines: (obj.items as Array<{title: string}>).slice(0, 3).map(i => i.title.slice(0, 40)),
+        metric: { value: String((obj.items as unknown[]).length), label: "items" },
+        kind: "memory",
+      });
+    }
+
+    // Daily briefing sections
+    if (Array.isArray(obj.sections) && (obj.sections as Array<{title?: string}>)[0]?.title) {
+      cards.push({
+        id: id(),
+        title: "Daily Briefing",
+        lines: (obj.sections as Array<{title: string}>).slice(0, 3).map(s => s.title),
+        kind: "analysis",
+      });
+    }
+
+    // Report generation
+    if (obj.reportType || obj.savedPath) {
+      cards.push({
+        id: id(),
+        title: String(obj.reportType || "Report").replace(/_/g, " "),
+        lines: obj.savedPath ? [`Saved to: ${String(obj.savedPath).split("/").pop()}`] : [],
+        kind: "data",
+      });
+    }
+
+    // Negotiation strategies
+    if (obj.scenario && obj.strategy) {
+      const strategy = obj.strategy as { title: string; talking_points?: string[] };
+      cards.push({
+        id: id(),
+        title: strategy.title || "Negotiation",
+        lines: (strategy.talking_points || []).slice(0, 2).map(p => p.replace(/\*\*/g, "").slice(0, 50)),
+        kind: "analysis",
+      });
+    }
+
+    // Decision analysis
+    if (obj.stats && typeof (obj.stats as Record<string, unknown>).total === "number") {
+      const stats = obj.stats as { total: number; withOutcomes: number; positiveRate: number };
+      cards.push({
+        id: id(),
+        title: "Decision Analysis",
+        lines: [`${stats.withOutcomes} with outcomes`, `${stats.positiveRate}% positive`],
+        metric: { value: String(stats.total), label: "decisions" },
+        kind: "stat",
+      });
+    }
+
+    // Checklist with form type
+    if (obj.form && obj.progress !== undefined) {
+      const formName = obj.form === "1008" ? "1008 Transmittal" : "1003 URLA";
+      cards.push({
+        id: id(),
+        title: formName,
+        lines: Array.isArray(obj.sections) 
+          ? (obj.sections as Array<{name: string}>).slice(0, 2).map(s => s.name)
+          : [],
+        metric: { value: `${obj.progress}%`, label: "complete", trend: (obj.progress as number) > 50 ? "up" : "neutral" },
+        kind: "stat",
+      });
+    }
+
+    // Connector status
+    if (Array.isArray(obj.connectors)) {
+      const enabled = (obj.connectors as Array<{enabled: boolean}>).filter(c => c.enabled).length;
+      cards.push({
+        id: id(),
+        title: "Connectors",
+        lines: (obj.connectors as Array<{name: string; enabled: boolean}>)
+          .filter(c => c.enabled)
+          .slice(0, 3)
+          .map(c => c.name),
+        metric: { value: String(enabled), label: "active" },
+        kind: "data",
+      });
+    }
   }
 
   return cards;
