@@ -2,18 +2,18 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { 
   Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, 
   Plus, Settings, Bell, User, Trash2,
-  PanelRight, RotateCcw, X, Search,
-  MessageSquare, ChevronRight, Brain, Plug,
+  PanelRight, PanelLeft, RotateCcw, X, Search,
+  MessageSquare, ChevronLeft, ChevronRight, Brain, Plug,
   Paperclip, Sparkles, Shield, Calculator, Megaphone,
   Activity, Handshake, UserPlus, Check
 } from "lucide-react";
 import { ArtifactPanel } from "./components/ArtifactPanel";
-import { LunaFace } from "./components/LunaFace";
+import { NeuralCore } from "./components/NeuralCore";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { HoloDemo } from "./components/HoloDemo";
 import { HoloDataCards, parseResponseToCards, type HoloCard } from "./components/HoloDataCards";
 import { newEntry, LunaRealtimeClient, type MouthShape, type LunaConnectionState, type LunaMood, type TranscriptEntry } from "./lib/realtime";
-import type { LunaArtifact, UploadedFile, Agent, ConversationSummary } from "./vite-env";
+import type { LunaArtifact, Agent, ConversationSummary } from "./vite-env";
 
 type LeftTab = "chats" | "agents" | "memory" | "connectors";
 
@@ -28,7 +28,7 @@ const AGENT_ICONS: Record<string, React.ComponentType<{ size?: number; className
 };
 
 function AgentIcon({ icon, className }: { icon: string; className?: string }) {
-  const Icon = AGENT_ICONS[icon] || User;
+  const Icon = AGENT_ICONS[icon] || Sparkles;
   return <Icon size={16} className={className} />;
 }
 
@@ -36,8 +36,6 @@ export default function App() {
   const [connectionState, setConnectionState] = useState<LunaConnectionState>("idle");
   const [mood, setMood] = useState<LunaMood>("idle");
   const [artifact, setArtifact] = useState<LunaArtifact | null>(null);
-  const [showRightPanel, setShowRightPanel] = useState(true);
-  const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [mouthShape, setMouthShape] = useState<MouthShape>({ open: 0, width: 0.18, round: 0, teeth: 0 });
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [isMuted, setIsMuted] = useState(false);
@@ -48,6 +46,10 @@ export default function App() {
   const [showHoloDemo, setShowHoloDemo] = useState(false);
   const [holoCards, setHoloCards] = useState<HoloCard[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Sidebar state
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(true);
   
   // Agent state
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -184,14 +186,13 @@ export default function App() {
       onMouthShape: setMouthShape,
       onTranscript: async (entry) => {
         setTranscript((items) => [entry, ...items].slice(0, 80));
-        // Persist to conversation
         if (activeConversationId && (entry.role === "user" || entry.role === "luna")) {
           await window.luna.addMessage(activeConversationId, entry.role, entry.text);
         }
       },
       onArtifact: (nextArtifact) => {
         setArtifact(nextArtifact);
-        setShowRightPanel(true);
+        setRightCollapsed(false);
         if (nextArtifact?.content) {
           const cards = parseResponseToCards(nextArtifact.content, nextArtifact.kind);
           addHoloCards(cards);
@@ -203,7 +204,6 @@ export default function App() {
     });
     clientRef.current = client;
     
-    // Start a conversation if none active
     if (!activeConversationId && activeAgent) {
       const conv = await window.luna.createConversation(activeAgent.id, activeAgent.name);
       setActiveConversationId(conv.id);
@@ -228,7 +228,6 @@ export default function App() {
     const trimmed = textPrompt.trim();
     if (!trimmed) return;
     
-    // Start conversation if needed
     if (!activeConversationId && activeAgent) {
       const conv = await window.luna.createConversation(activeAgent.id, activeAgent.name);
       setActiveConversationId(conv.id);
@@ -238,7 +237,6 @@ export default function App() {
     if (clientRef.current) {
       clientRef.current.sendText(trimmed);
     } else {
-      // Not connected - just add to transcript
       const entry = newEntry("user", trimmed);
       setTranscript((items) => [entry, ...items].slice(0, 80));
       if (activeConversationId) {
@@ -259,7 +257,6 @@ export default function App() {
       
       for (const filePath of filePaths) {
         const file = await window.luna.uploadFile(filePath);
-        
         const result = await window.luna.executeTool({
           name: "file_parse",
           arguments: { filePath: file.path, fileName: file.name },
@@ -267,7 +264,7 @@ export default function App() {
         
         if (result.artifact) {
           setArtifact(result.artifact);
-          setShowRightPanel(true);
+          setRightCollapsed(false);
         }
         
         setTranscript((items) => [
@@ -286,356 +283,309 @@ export default function App() {
   }
 
   async function handleQuickAction(action: string) {
-    const result = await window.luna.executeTool({
-      name: action,
-      arguments: {},
-    });
+    const result = await window.luna.executeTool({ name: action, arguments: {} });
     if (result.artifact) {
       setArtifact(result.artifact);
-      setShowRightPanel(true);
+      setRightCollapsed(false);
     }
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#F0F0F0]">
+    <div className="h-screen w-screen flex flex-col bg-slate-950 text-white font-['Inter',system-ui,sans-serif]">
       {/* Top Bar */}
-      <header className="h-14 flex items-center justify-between px-4 window-drag">
+      <header className="h-12 flex items-center justify-between px-4 border-b border-white/5 bg-slate-900/50 backdrop-blur-xl window-drag">
         <div className="flex items-center gap-3 window-no-drag">
+          <button
+            onClick={() => setLeftCollapsed(c => !c)}
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
+          >
+            {leftCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
           <div 
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: activeAgent?.accent || "#1f2937" }}
+            className="w-7 h-7 rounded-lg flex items-center justify-center"
+            style={{ background: activeAgent?.accent || "#6366f1" }}
           >
             {activeAgent && <AgentIcon icon={activeAgent.icon} className="text-white" />}
           </div>
-          <div>
-            <span className="font-semibold text-gray-800 tracking-tight">
-              {activeAgent?.name || "LUNA"} 
-            </span>
-            {activeAgent && activeAgent.role !== "General Assistant" && (
-              <span className="text-xs text-gray-500 ml-2">{activeAgent.role}</span>
-            )}
-          </div>
+          <span className="text-sm font-medium text-white/90">
+            {activeAgent?.name || "SmartStart"}
+          </span>
+          {activeAgent && activeAgent.role !== "General Assistant" && (
+            <span className="text-xs text-white/40 hidden sm:inline">{activeAgent.role}</span>
+          )}
         </div>
         
         <div className="flex items-center gap-2 window-no-drag">
           <button 
             onClick={() => setShowHoloDemo(true)}
-            className="h-9 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 flex items-center gap-2 text-white text-sm font-medium transition-all shadow-lg shadow-blue-500/25"
-            title="Open Holographic Demo"
+            className="h-8 px-3 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 flex items-center gap-2 text-white text-xs font-medium transition-all"
           >
-            <span className="text-base">✨</span>
+            <Sparkles size={14} />
             Holo Demo
           </button>
-          <button className="w-9 h-9 rounded-xl glass flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/80 transition-all">
-            <Bell size={18} />
+          <button className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all">
+            <Bell size={16} />
           </button>
           <button 
             onClick={() => setShowSettings(true)}
-            className="w-9 h-9 rounded-xl glass flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/80 transition-all"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
           >
-            <Settings size={18} />
+            <Settings size={16} />
           </button>
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex gap-4 p-4 pt-0 min-h-0">
+      <div className="flex-1 flex min-h-0">
         {/* Left Sidebar */}
-        {showLeftPanel && (
-          <aside className="w-72 flex-shrink-0 glass rounded-2xl flex flex-col overflow-hidden shadow-glass">
-            {/* Tabs */}
-            <div className="p-3 border-b border-black/5">
-              <div className="flex gap-1 p-1 bg-black/5 rounded-xl">
-                <button 
-                  onClick={() => setActiveTab("chats")}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
-                    activeTab === "chats" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <MessageSquare size={12} />
-                  Chats
-                </button>
-                <button 
-                  onClick={() => setActiveTab("agents")}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
-                    activeTab === "agents" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <User size={12} />
-                  Agents
-                </button>
-                <button 
-                  onClick={() => setActiveTab("memory")}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
-                    activeTab === "memory" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Brain size={12} />
-                  Memory
-                </button>
-                <button 
-                  onClick={() => setActiveTab("connectors")}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
-                    activeTab === "connectors" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Plug size={12} />
-                </button>
+        <aside className={`${leftCollapsed ? "w-0" : "w-64"} flex-shrink-0 border-r border-white/5 bg-slate-900/30 backdrop-blur-sm flex flex-col overflow-hidden transition-all duration-300`}>
+          {!leftCollapsed && (
+            <>
+              {/* Tabs */}
+              <div className="p-2 border-b border-white/5">
+                <div className="flex gap-1">
+                  {(["chats", "agents", "memory", "connectors"] as LeftTab[]).map(tab => (
+                    <button 
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
+                        activeTab === tab 
+                          ? "bg-white/10 text-white" 
+                          : "text-white/50 hover:text-white/80 hover:bg-white/5"
+                      }`}
+                    >
+                      {tab === "chats" && <MessageSquare size={12} className="mx-auto" />}
+                      {tab === "agents" && <User size={12} className="mx-auto" />}
+                      {tab === "memory" && <Brain size={12} className="mx-auto" />}
+                      {tab === "connectors" && <Plug size={12} className="mx-auto" />}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Tab Content */}
-            <div className="flex-1 overflow-auto">
-              {activeTab === "chats" && (
-                <div className="p-3">
-                  {/* New Chat Button */}
-                  <button
-                    onClick={startNewChat}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium transition-all mb-3"
-                  >
-                    <Plus size={16} />
-                    New Chat
-                  </button>
+              {/* Tab Content */}
+              <div className="flex-1 overflow-auto p-2">
+                {activeTab === "chats" && (
+                  <div className="space-y-2">
+                    <button
+                      onClick={startNewChat}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-sm font-medium transition-all border border-indigo-500/20"
+                    >
+                      <Plus size={14} />
+                      New Chat
+                    </button>
 
-                  {/* Search */}
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/5 text-gray-400 mb-3">
-                    <Search size={14} />
-                    <span className="text-xs flex-1">Search chats...</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-white/40">
+                      <Search size={12} />
+                      <span className="text-xs">Search chats...</span>
+                    </div>
+
+                    <div className="space-y-1 mt-2">
+                      {conversations.length === 0 ? (
+                        <p className="text-xs text-white/30 text-center py-4">No conversations yet</p>
+                      ) : (
+                        conversations.map((conv) => (
+                          <button
+                            key={conv.id}
+                            onClick={() => switchConversation(conv.id)}
+                            className={`w-full group flex items-start gap-2 px-2 py-2 rounded-lg text-left transition-all ${
+                              activeConversationId === conv.id 
+                                ? "bg-white/10" 
+                                : "hover:bg-white/5"
+                            }`}
+                          >
+                            <MessageSquare size={12} className="text-white/40 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-white/80 truncate">{conv.title}</p>
+                              <p className="text-[10px] text-white/30">
+                                {new Date(conv.updatedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <button
+                              onClick={(e) => deleteConv(conv.id, e)}
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded text-white/30 hover:text-red-400 transition-all"
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </div>
+                )}
 
-                  {/* Conversation List */}
-                  <div className="space-y-1">
-                    {conversations.length === 0 ? (
-                      <p className="text-xs text-gray-400 text-center py-4">No conversations yet</p>
+                {activeTab === "agents" && (
+                  <div className="space-y-2">
+                    {showNewAgent ? (
+                      <div className="p-2 rounded-lg bg-white/5 space-y-2">
+                        <input
+                          type="text"
+                          value={newAgentName}
+                          onChange={(e) => setNewAgentName(e.target.value)}
+                          placeholder="Agent name..."
+                          className="w-full px-2 py-1.5 rounded-md bg-white/10 border border-white/10 text-xs text-white placeholder-white/30 outline-none focus:border-indigo-500/50"
+                        />
+                        <input
+                          type="text"
+                          value={newAgentRole}
+                          onChange={(e) => setNewAgentRole(e.target.value)}
+                          placeholder="Role..."
+                          className="w-full px-2 py-1.5 rounded-md bg-white/10 border border-white/10 text-xs text-white placeholder-white/30 outline-none focus:border-indigo-500/50"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={createNewAgent}
+                            disabled={!newAgentName.trim() || !newAgentRole.trim()}
+                            className="flex-1 py-1.5 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium disabled:opacity-50"
+                          >
+                            Create
+                          </button>
+                          <button
+                            onClick={() => setShowNewAgent(false)}
+                            className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/70 text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      conversations.map((conv) => (
+                      <button
+                        onClick={() => setShowNewAgent(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-white/20 hover:border-white/40 text-white/50 hover:text-white/70 text-xs transition-all"
+                      >
+                        <UserPlus size={14} />
+                        Create Agent
+                      </button>
+                    )}
+
+                    <div className="space-y-1 mt-2">
+                      {agents.map((agent) => (
                         <button
-                          key={conv.id}
-                          onClick={() => switchConversation(conv.id)}
-                          className={`w-full group flex items-start gap-2 px-3 py-2 rounded-xl text-left transition-all ${
-                            activeConversationId === conv.id 
-                              ? "bg-white shadow-sm" 
-                              : "hover:bg-white/60"
+                          key={agent.id}
+                          onClick={() => switchAgent(agent.id)}
+                          className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-all ${
+                            activeAgent?.id === agent.id ? "bg-white/10" : "hover:bg-white/5"
                           }`}
                         >
-                          <MessageSquare size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-700 truncate">{conv.title}</p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(conv.updatedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <button
-                            onClick={(e) => deleteConv(conv.id, e)}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500 transition-all"
+                          <div 
+                            className="w-6 h-6 rounded-md flex items-center justify-center"
+                            style={{ background: agent.accent }}
                           >
-                            <Trash2 size={12} />
-                          </button>
+                            <AgentIcon icon={agent.icon} className="text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-white/90">{agent.name}</p>
+                            <p className="text-[10px] text-white/40 truncate">{agent.role}</p>
+                          </div>
+                          {activeAgent?.id === agent.id && (
+                            <Check size={12} className="text-green-400" />
+                          )}
                         </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "agents" && (
-                <div className="p-3">
-                  {/* New Agent Form */}
-                  {showNewAgent ? (
-                    <div className="p-3 rounded-xl bg-white/60 mb-3 space-y-2">
-                      <input
-                        type="text"
-                        value={newAgentName}
-                        onChange={(e) => setNewAgentName(e.target.value)}
-                        placeholder="Agent name..."
-                        className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm outline-none focus:border-blue-400"
-                      />
-                      <input
-                        type="text"
-                        value={newAgentRole}
-                        onChange={(e) => setNewAgentRole(e.target.value)}
-                        placeholder="Role (e.g., Loan Officer)..."
-                        className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm outline-none focus:border-blue-400"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={createNewAgent}
-                          disabled={!newAgentName.trim() || !newAgentRole.trim()}
-                          className="flex-1 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium disabled:opacity-50"
-                        >
-                          Create
-                        </button>
-                        <button
-                          onClick={() => setShowNewAgent(false)}
-                          className="px-3 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  ) : (
+                  </div>
+                )}
+
+                {activeTab === "memory" && (
+                  <div className="space-y-2">
                     <button
-                      onClick={() => setShowNewAgent(true)}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-gray-300 hover:border-gray-400 text-gray-500 hover:text-gray-700 text-sm transition-all mb-3"
+                      onClick={() => handleQuickAction("memory_list")}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
                     >
-                      <UserPlus size={16} />
-                      Create Agent
+                      <Brain size={14} className="text-purple-400" />
+                      <span className="text-xs text-white/70">View Memories</span>
                     </button>
-                  )}
+                    <button
+                      onClick={() => handleQuickAction("kb_topics")}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
+                    >
+                      <Search size={14} className="text-blue-400" />
+                      <span className="text-xs text-white/70">Knowledge Base</span>
+                    </button>
+                  </div>
+                )}
 
-                  {/* Agent List */}
-                  <div className="space-y-1">
-                    {agents.map((agent) => (
-                      <button
-                        key={agent.id}
-                        onClick={() => switchAgent(agent.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                          activeAgent?.id === agent.id 
-                            ? "bg-white shadow-sm" 
-                            : "hover:bg-white/60"
-                        }`}
-                      >
-                        <div 
-                          className="w-8 h-8 rounded-lg flex items-center justify-center"
-                          style={{ background: agent.accent }}
-                        >
-                          <AgentIcon icon={agent.icon} className="text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800">{agent.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{agent.role}</p>
-                        </div>
-                        {activeAgent?.id === agent.id && (
-                          <Check size={16} className="text-green-500" />
-                        )}
-                      </button>
-                    ))}
+                {activeTab === "connectors" && (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleQuickAction("connectors_list")}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
+                    >
+                      <Plug size={14} className="text-green-400" />
+                      <span className="text-xs text-white/70">View Connectors</span>
+                    </button>
+                    <button
+                      onClick={() => setShowSettings(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
+                    >
+                      <Settings size={14} className="text-white/40" />
+                      <span className="text-xs text-white/70">Settings</span>
+                    </button>
                   </div>
-                </div>
-              )}
-
-              {activeTab === "memory" && (
-                <div className="p-3 space-y-2">
-                  <button
-                    onClick={() => handleQuickAction("memory_list")}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
-                  >
-                    <Brain size={16} className="text-purple-500" />
-                    <span className="text-sm text-gray-700">View Memories</span>
-                  </button>
-                  <button
-                    onClick={() => handleQuickAction("kb_topics")}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
-                  >
-                    <Search size={16} className="text-blue-500" />
-                    <span className="text-sm text-gray-700">Knowledge Base</span>
-                  </button>
-                  <div className="mt-4 p-3 rounded-xl bg-purple-50 text-xs text-purple-700">
-                    <strong>Memory System</strong><br/>
-                    Save important information that Luna remembers across sessions.
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "connectors" && (
-                <div className="p-3 space-y-2">
-                  <button
-                    onClick={() => handleQuickAction("connectors_list")}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
-                  >
-                    <Plug size={16} className="text-green-500" />
-                    <span className="text-sm text-gray-700">View Connectors</span>
-                  </button>
-                  <button
-                    onClick={() => setShowSettings(true)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/60 text-left transition-all"
-                  >
-                    <Settings size={16} className="text-gray-500" />
-                    <span className="text-sm text-gray-700">Manage Settings</span>
-                  </button>
-                  <div className="mt-4 p-3 rounded-xl bg-emerald-50 text-xs text-emerald-700">
-                    <strong>Connectors</strong><br/>
-                    Connect to external services like Gmail, web search, and more.
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Active Agent Card */}
-            {activeAgent && (
-              <div className="p-3 border-t border-black/5">
-                <div 
-                  className="flex items-center gap-3 p-2 rounded-xl transition-all"
-                  style={{ background: `${activeAgent.accent}10` }}
-                >
-                  <div 
-                    className="w-9 h-9 rounded-full flex items-center justify-center"
-                    style={{ background: activeAgent.accent }}
-                  >
-                    <AgentIcon icon={activeAgent.icon} className="text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-800">{activeAgent.name}</div>
-                    <div className="text-xs text-gray-500">{activeAgent.role}</div>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
-          </aside>
-        )}
+
+              {/* Active Agent */}
+              {activeAgent && (
+                <div className="p-2 border-t border-white/5">
+                  <div 
+                    className="flex items-center gap-2 p-2 rounded-lg"
+                    style={{ background: `${activeAgent.accent}15` }}
+                  >
+                    <div 
+                      className="w-7 h-7 rounded-md flex items-center justify-center"
+                      style={{ background: activeAgent.accent }}
+                    >
+                      <AgentIcon icon={activeAgent.icon} className="text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-white/90">{activeAgent.name}</div>
+                      <div className="text-[10px] text-white/40">{activeAgent.role}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </aside>
 
         {/* Center Stage */}
-        <main className="flex-1 glass rounded-2xl flex flex-col items-center justify-center relative overflow-hidden shadow-glass-lg">
-          {/* Toggle left panel if hidden */}
-          {!showLeftPanel && (
-            <button
-              onClick={() => setShowLeftPanel(true)}
-              className="absolute top-4 left-4 w-9 h-9 rounded-xl bg-white/80 hover:bg-white flex items-center justify-center text-gray-500 shadow-sm transition-all"
-            >
-              <MessageSquare size={18} />
-            </button>
-          )}
+        <main className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+          {/* Background grid */}
+          <div 
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+              backgroundSize: "60px 60px",
+            }}
+          />
 
           {/* Holo Cards Overlay */}
           <HoloDataCards cards={holoCards} onCardsDismissed={() => setHoloCards([])} />
 
-          {/* Luna Avatar with agent accent */}
-          <div className="relative">
-            <LunaFace mood={mood} size="large" className="mb-6" />
-            {activeAgent && activeAgent.id !== "luna-default" && (
-              <div 
-                className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-medium text-white"
-                style={{ background: activeAgent.accent }}
-              >
-                {activeAgent.role}
-              </div>
-            )}
-          </div>
+          {/* Neural Core */}
+          <NeuralCore mood={mood} size="large" />
 
           {/* Hero Text */}
-          <h1 className="text-4xl md:text-5xl font-light text-gray-300 text-center mb-2 tracking-tight">
-            What's on
-          </h1>
-          <h1 className="text-4xl md:text-5xl font-light text-gray-400 text-center mb-12 tracking-tight">
-            your mind?
-          </h1>
+          <div className="mt-8 mb-12 text-center">
+            <h1 className="text-3xl font-light text-white/20 tracking-tight">
+              What's on your mind?
+            </h1>
+          </div>
 
-          {/* Floating Input Bar with Upload */}
-          <div className="w-full max-w-xl px-4">
-            <div className="glass rounded-2xl p-3 shadow-glass-lg">
-              {/* Main input row */}
-              <div className="flex items-center gap-2">
-                {/* Upload button - now in input area */}
+          {/* Floating Input Bar */}
+          <div className="w-full max-w-lg px-4">
+            <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-1 border border-white/10 shadow-2xl shadow-black/20">
+              <div className="flex items-center gap-1">
                 <button 
                   onClick={handleFileUpload}
                   disabled={isUploading}
-                  className="w-10 h-10 rounded-xl bg-white/60 hover:bg-white flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all disabled:opacity-50"
-                  title="Upload file (CSV, PDF, DOCX, images)"
+                  className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all disabled:opacity-50"
                 >
                   {isUploading ? (
-                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
-                    <Paperclip size={18} />
+                    <Paperclip size={16} />
                   )}
                 </button>
                 
@@ -644,62 +594,52 @@ export default function App() {
                   value={textPrompt}
                   onChange={(e) => setTextPrompt(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendTextPrompt()}
-                  placeholder={`Ask ${activeAgent?.name || "Luna"} anything...`}
-                  className="flex-1 bg-transparent outline-none text-gray-700 placeholder-gray-400 text-sm px-2"
+                  placeholder={`Ask ${activeAgent?.name || "SmartStart"} anything...`}
+                  className="flex-1 bg-transparent outline-none text-white/90 placeholder-white/30 text-sm px-2 py-3"
                 />
 
-                {/* Mute */}
                 <button
                   onClick={() => setIsMuted(m => !m)}
                   className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                    isMuted ? "bg-red-100 text-red-500" : "bg-white/60 hover:bg-white text-gray-500"
+                    isMuted ? "bg-red-500/20 text-red-400" : "bg-white/5 hover:bg-white/10 text-white/50 hover:text-white"
                   }`}
-                  title={isMuted ? "Unmute" : "Mute"}
                 >
-                  {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
+                  {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
                 </button>
 
-                {/* Voice/Call Button */}
                 {!isConnected ? (
                   <button
                     onClick={connect}
                     disabled={isConnecting}
-                    className="w-12 h-12 rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-white transition-all disabled:opacity-50"
-                    title="Start voice call"
+                    className="w-10 h-10 rounded-xl bg-indigo-500 hover:bg-indigo-600 flex items-center justify-center text-white transition-all disabled:opacity-50"
                   >
                     {isConnecting ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      <Phone size={20} />
+                      <Phone size={16} />
                     )}
                   </button>
                 ) : (
                   <button
                     onClick={disconnect}
-                    className="w-12 h-12 rounded-xl bg-red-500 hover:bg-red-600 flex items-center justify-center text-white transition-all animate-pulse-soft"
-                    title="End call"
+                    className="w-10 h-10 rounded-xl bg-red-500 hover:bg-red-600 flex items-center justify-center text-white transition-all"
                   >
-                    <PhoneOff size={20} />
+                    <PhoneOff size={16} />
                   </button>
                 )}
               </div>
-
-              {/* Upload hint */}
-              <p className="text-xs text-gray-400 text-center mt-2">
-                📎 Attach files • 🎤 Voice or type • Powered by {activeAgent?.name || "Luna"}
-              </p>
             </div>
           </div>
 
           {/* Bottom Controls */}
           <div className="absolute bottom-4 right-4 flex items-center gap-2">
             {isConnected && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-full glass-light">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
                 <button
                   onClick={() => setVolume(v => v > 0 ? 0 : 80)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-white/50 hover:text-white"
                 >
-                  {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                  {volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
                 </button>
                 <input
                   type="range"
@@ -707,100 +647,100 @@ export default function App() {
                   max="100"
                   value={volume}
                   onChange={(e) => setVolume(Number(e.target.value))}
-                  className="w-20 h-1 bg-gray-300 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-gray-600"
+                  className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
                 />
               </div>
             )}
             <button
               onClick={handleRestart}
-              className="w-9 h-9 rounded-xl glass-light flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/80 transition-all"
-              title="Restart"
+              className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all"
             >
-              <RotateCcw size={16} />
+              <RotateCcw size={14} />
             </button>
             <button
-              onClick={() => setShowRightPanel(p => !p)}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                showRightPanel ? "bg-gray-800 text-white" : "glass-light text-gray-500 hover:text-gray-700"
+              onClick={() => setRightCollapsed(c => !c)}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${
+                rightCollapsed 
+                  ? "bg-white/5 hover:bg-white/10 border-white/10 text-white/50 hover:text-white" 
+                  : "bg-indigo-500/20 border-indigo-500/30 text-indigo-400"
               }`}
-              title="Toggle tools panel"
             >
-              <PanelRight size={16} />
+              <PanelRight size={14} />
             </button>
           </div>
 
           {/* Connection Status */}
           {isConnected && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full glass-light flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm text-gray-600">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-white/10 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-xs text-white/60">
                 {mood === "listening" ? "Listening..." : mood === "speaking" ? "Speaking..." : "Connected"}
               </span>
             </div>
           )}
         </main>
 
-        {/* Right Panel - Tool Execution */}
-        {showRightPanel && (
-          <aside className="w-80 flex-shrink-0 glass rounded-2xl flex flex-col overflow-hidden shadow-glass">
-            <div className="p-4 border-b border-black/5 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-800">Tool Execution</h2>
-              <button 
-                onClick={() => setShowRightPanel(false)}
-                className="w-7 h-7 rounded-lg hover:bg-black/5 flex items-center justify-center text-gray-400"
-              >
-                <X size={16} />
-              </button>
-            </div>
+        {/* Right Panel */}
+        <aside className={`${rightCollapsed ? "w-0" : "w-80"} flex-shrink-0 border-l border-white/5 bg-slate-900/30 backdrop-blur-sm flex flex-col overflow-hidden transition-all duration-300`}>
+          {!rightCollapsed && (
+            <>
+              <div className="p-3 border-b border-white/5 flex items-center justify-between">
+                <h2 className="text-sm font-medium text-white/80">Results</h2>
+                <button 
+                  onClick={() => setRightCollapsed(true)}
+                  className="w-6 h-6 rounded-md hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+                >
+                  <X size={14} />
+                </button>
+              </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-auto p-4">
-              {artifact ? (
-                <ArtifactPanel
-                  artifact={artifact}
-                  visible={true}
-                  fullscreen={false}
-                  onToggleVisible={() => setShowRightPanel(false)}
-                  onToggleFullscreen={() => {}}
-                  embedded={true}
-                />
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-                    <MessageSquare size={24} className="text-gray-400" />
+              <div className="flex-1 overflow-auto p-3">
+                {artifact ? (
+                  <ArtifactPanel
+                    artifact={artifact}
+                    visible={true}
+                    fullscreen={false}
+                    onToggleVisible={() => setRightCollapsed(true)}
+                    onToggleFullscreen={() => {}}
+                    embedded={true}
+                  />
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mb-3">
+                      <MessageSquare size={20} className="text-white/20" />
+                    </div>
+                    <p className="text-xs text-white/30">
+                      Results will appear here
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-500">
-                    Tool outputs, artifacts, and results will appear here
-                  </p>
+                )}
+              </div>
+
+              {transcript.length > 0 && (
+                <div className="border-t border-white/5 p-3 max-h-40 overflow-auto">
+                  <div className="text-[10px] font-medium text-white/30 uppercase tracking-wider mb-2">Recent</div>
+                  <div className="space-y-1">
+                    {transcript.slice(0, 3).map((entry) => (
+                      <div 
+                        key={entry.id}
+                        className={`text-xs p-2 rounded-lg ${
+                          entry.role === "luna" ? "bg-indigo-500/10 text-indigo-300" :
+                          entry.role === "user" ? "bg-green-500/10 text-green-300" :
+                          "bg-white/5 text-white/50"
+                        }`}
+                      >
+                        <span className="font-medium">
+                          {entry.role === "luna" ? (activeAgent?.name || "Luna") : entry.role}: 
+                        </span>
+                        {" "}{entry.text.slice(0, 60)}{entry.text.length > 60 ? "..." : ""}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-            </div>
-
-            {/* Transcript Preview */}
-            {transcript.length > 0 && (
-              <div className="border-t border-black/5 p-4 max-h-48 overflow-auto">
-                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Recent</div>
-                <div className="space-y-2">
-                  {transcript.slice(0, 3).map((entry) => (
-                    <div 
-                      key={entry.id}
-                      className={`text-xs p-2 rounded-lg ${
-                        entry.role === "luna" ? "bg-blue-50 text-blue-700" :
-                        entry.role === "user" ? "bg-green-50 text-green-700" :
-                        "bg-gray-50 text-gray-600"
-                      }`}
-                    >
-                      <span className="font-medium capitalize">
-                        {entry.role === "luna" ? (activeAgent?.name || "Luna") : entry.role}: 
-                      </span>
-                      {entry.text.slice(0, 80)}{entry.text.length > 80 ? "..." : ""}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </aside>
-        )}
+            </>
+          )}
+        </aside>
       </div>
 
       {/* Settings Panel */}

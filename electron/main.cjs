@@ -9,6 +9,9 @@ const { phase2ToolSpecs, handlePhase2Tool } = require("./phase2-tools.cjs");
 const { connectorToolSpecs, handleConnectorTool, getSecret } = require("./connectors/index.cjs");
 const agents = require("./agents.cjs");
 
+// Set app name for macOS menu bar BEFORE ready
+app.setName("SmartStart");
+
 dotenv.config({ path: path.join(process.cwd(), ".env.local") });
 
 const execFileAsync = promisify(execFile);
