@@ -245,14 +245,14 @@ export default function App() {
                     {conversations.length === 0 ? (
                       <p className="text-[10px] text-white/20 text-center py-4">No conversations</p>
                     ) : conversations.map(conv => (
-                      <button key={conv.id} onClick={() => switchConversation(conv.id)} className={`w-full group flex items-start gap-1.5 px-2 py-1.5 rounded-md text-left transition-colors ${activeConversationId === conv.id ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"}`}>
+                      <div key={conv.id} role="button" tabIndex={0} onClick={() => switchConversation(conv.id)} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && switchConversation(conv.id)} className={`w-full group flex items-start gap-1.5 px-2 py-1.5 rounded-md text-left transition-colors cursor-pointer ${activeConversationId === conv.id ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"}`}>
                         <MessageSquare size={10} className="text-white/30 mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] text-white/70 truncate">{conv.title}</p>
                           <p className="text-[9px] text-white/25">{new Date(conv.updatedAt).toLocaleDateString()}</p>
                         </div>
                         <button onClick={(e) => deleteConv(conv.id, e)} className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-500/20 rounded text-white/20 hover:text-red-400 transition-all"><Trash2 size={10} /></button>
-                      </button>
+                      </div>
                     ))}
                   </>
                 )}
