@@ -172,7 +172,53 @@ npm run build     # Production build
 | 1003 checklist guidance | ✅ Done |
 | OCR extraction | ✅ Done |
 | Web search (Exa) | ✅ Done |
-| App connectors (Gmail) | 🔲 Stub |
+| LOS API knowledge (Encompass, Calyx, etc.) | ✅ Done |
+| Connector framework | ✅ Done |
+| Secure API key management | ✅ Done |
+| Settings panel | ✅ Done |
+| App connectors (Gmail, Encompass, REST) | 🔲 Stub |
+
+### LOS API Knowledge
+
+Luna includes educational knowledge about major LOS platforms and their APIs:
+
+- **ICE Encompass** - Developer Connect APIs, OAuth 2.0, loan/pipeline/document endpoints, webhooks
+- **ICE Empower** - Cloud LOS API patterns
+- **Calyx Point** - COM SDK, XML import/export, PointCentral
+- **Dark Matter** - Modern cloud LOS
+- **Other platforms** - Byte, LendingPad, MortgageBot, OpenClose, Arive, Blend, Floify
+
+Ask Luna: "How do I integrate with Encompass?" or "What's the auth pattern for Calyx Point?"
+
+*Note: This is educational guidance. Always verify against official vendor documentation.*
+
+### Connector Framework
+
+Luna features a pluggable connector framework for integrating with external services:
+
+- **Manifest-based** - Each connector declares ID, name, auth type, required secrets, and tools
+- **Enable/disable** - Toggle connectors from Settings panel
+- **Status tracking** - View which connectors are configured and ready
+
+Built-in connectors:
+- Memory, Knowledge Base, File/OCR (core)
+- Web Search (Exa)
+- OpenAI (image generation)
+- ElevenLabs (voice)
+- Gmail (stub)
+- Encompass (stub)
+- Generic REST (stub)
+
+### API Key Management
+
+Secure storage for API keys and secrets:
+
+- **OS keychain integration** - Uses Electron `safeStorage` where available
+- **Settings UI** - Add/view/delete keys from Settings → API Keys
+- **Masked values** - Keys displayed with masked characters
+- **Env var support** - `.env.local` keys are auto-loaded
+
+Access via: Settings button (top-right) → API Keys tab
 
 ## Disclaimers
 

@@ -6,6 +6,7 @@ const fs = require("node:fs/promises");
 const crypto = require("node:crypto");
 const dotenv = require("dotenv");
 const { phase2ToolSpecs, handlePhase2Tool } = require("./phase2-tools.cjs");
+const { connectorToolSpecs, handleConnectorTool, getSecret } = require("./connectors/index.cjs");
 
 dotenv.config({ path: path.join(process.cwd(), ".env.local") });
 
@@ -554,7 +555,7 @@ function setWindowMode(mode) {
   }
 }
 
-ipcMain.handle("tools:list", () => [...toolSpecs, ...phase2ToolSpecs]);
+ipcMain.handle("tools:list", () => [...toolSpecs, ...phase2ToolSpecs, ...connectorToolSpecs]);
 
 ipcMain.handle("realtime:get-config", async () => {
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY;
@@ -610,6 +611,37 @@ ipcMain.handle("file:upload", async (_event, filePath) => {
   return { path: destPath, name: fileName };
 });
 
+// Connector IPC handlers
+const connectors = require("./connectors/index.cjs");
+
+ipcMain.handle("connectors:list", async () => {
+  return await connectors.listConnectors();
+});
+
+ipcMain.handle("connectors:enable", async (_event, id) => {
+  return await connectors.enableConnector(id);
+});
+
+ipcMain.handle("connectors:disable", async (_event, id) => {
+  return await connectors.disableConnector(id);
+});
+
+ipcMain.handle("connectors:status", async (_event, id) => {
+  return await connectors.getConnectorStatus(id);
+});
+
+ipcMain.handle("secrets:list", async () => {
+  return await connectors.listSecrets();
+});
+
+ipcMain.handle("secrets:set", async (_event, key, value) => {
+  return await connectors.setSecret(key, value);
+});
+
+ipcMain.handle("secrets:delete", async (_event, key) => {
+  return await connectors.deleteSecret(key);
+});
+
 ipcMain.handle("tools:execute", async (_event, toolCall) => {
   const name = String(toolCall?.name || "");
   const args = asObject(toolCall?.arguments);
@@ -619,6 +651,12 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
     const phase2Result = await handlePhase2Tool(name, args);
     if (phase2Result !== null) {
       return phase2Result;
+    }
+
+    // Check connector tools
+    const connectorResult = await handleConnectorTool(name, args);
+    if (connectorResult !== null) {
+      return connectorResult;
     }
 
     if (name === "set_mode") {
