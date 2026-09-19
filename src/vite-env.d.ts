@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-export type RickyArtifact = {
+export type LunaArtifact = {
   title: string;
   kind:
     | "text"
@@ -18,33 +18,42 @@ export type RickyArtifact = {
   fullscreen?: boolean;
 };
 
-export type RickyToolSpec = {
+export type LunaToolSpec = {
   type: "function";
   name: string;
   description: string;
   parameters: Record<string, unknown>;
 };
 
-export type RickyToolCall = {
+export type LunaToolCall = {
   name: string;
   arguments: Record<string, unknown>;
 };
 
-export type RickyToolResult = {
+export type LunaToolResult = {
   ok: boolean;
-  artifact?: RickyArtifact;
+  artifact?: LunaArtifact;
   mode?: "display" | "computer";
   message?: string;
   error?: string;
   [key: string]: unknown;
 };
 
+export type ElevenLabsRealtimeConfig = {
+  provider: "elevenlabs";
+  signedUrl: string;
+  agentId: string;
+};
+
+export type LunaRealtimeConfig = ElevenLabsRealtimeConfig;
+
 declare global {
   interface Window {
-    ricky: {
-      createRealtimeToken: () => Promise<{ value: string; expiresAt: number | null }>;
-      executeTool: (toolCall: RickyToolCall) => Promise<RickyToolResult>;
-      getToolSpecs: () => Promise<RickyToolSpec[]>;
+    luna: {
+      getRealtimeConfig: () => Promise<LunaRealtimeConfig>;
+      executeTool: (toolCall: LunaToolCall) => Promise<LunaToolResult>;
+      getToolSpecs: () => Promise<LunaToolSpec[]>;
+      restart: () => Promise<void>;
     };
   }
 }

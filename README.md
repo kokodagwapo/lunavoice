@@ -1,100 +1,122 @@
-# RileyJarvis
+# Luna Voice
 
-RileyJarvis is a local Electron desktop AI companion with realtime voice, a visual artifact panel, image generation, web search, notes, and opt-in macOS computer control.
-
-It is built with Electron, React, Vite, TypeScript, and the OpenAI Realtime API.
+Luna Voice is a desktop AI voice companion featuring the Singularity Horizon visualization and powered by ElevenLabs Conversational AI.
 
 ## Features
 
-- Realtime speech-to-speech conversation with OpenAI Realtime.
-- Animated companion face with listening, thinking, speaking, and working states.
-- Artifact panel for markdown, menus, notes, Mermaid diagrams, generated images, records, and progress.
-- YouTube thumbnail board with persistent numbered generations and image edits.
-- Optional Exa-powered web search.
-- Local notes and records stored at runtime under `data/`.
-- Optional computer-use mode for opening apps, clicking, typing, scrolling, screenshots, and UI inspection on macOS.
+- **ElevenLabs Conversational AI** - Natural voice conversations with the Luna SmartStart agent
+- **Singularity Horizon** - Stunning WebGL2 visualization that responds to conversation state
+- **Light minimalist UI** - Clean, modern interface with glassmorphic design
+- **Artifact panel** - Display markdown, charts, images, notes, and more
+- **Computer use mode** - Optional macOS automation capabilities
+- **macOS app** - Installable app you can keep in your Dock
 
 ## Requirements
 
-- macOS
+- macOS (for full features) or Linux/Windows (basic features)
 - Node.js 20+
 - npm
-- An OpenAI API key with Realtime and image generation access
-- Optional: an Exa API key for web search
+- ElevenLabs API key with Conversational AI access
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/rileybrown/rileyjarvis.git
-cd rileyjarvis
+git clone https://github.com/kokodagwapo/lunavoice.git
+cd lunavoice
 npm install
 cp .env.example .env.local
+# Edit .env.local with your API keys
 npm run dev
 ```
 
-Edit `.env.local` before starting voice features:
+## Configuration
+
+Edit `.env.local`:
 
 ```bash
-OPENAI_API_KEY=your_openai_api_key_here
+# Required - ElevenLabs Conversational AI
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+ELEVENLABS_AGENT_ID=agent_9201m2rz87evfjsaek9c3a275b62
+
+# Optional - Exa web search
 EXA_API_KEY=your_exa_api_key_here
+
+# Optional - OpenAI for image generation tools
+OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-`OPENAI_API_KEY` is required. `EXA_API_KEY` is optional; web search will show a setup message when it is missing.
+### ElevenLabs Agent
 
-## macOS Permissions
+Luna Voice uses the **Luna - SmartStart** agent by default:
+- Agent ID: `agent_9201m2rz87evfjsaek9c3a275b62`
+- Voice: Custom female voice (ID: `nAjIdBO5jCaTG1W0RTrz`)
 
-RileyJarvis runs locally. Depending on the features you use, macOS may ask for:
+You can use your own ElevenLabs agent by changing `ELEVENLABS_AGENT_ID`.
 
-- Microphone permission for voice conversation.
-- Accessibility permission for computer-control tools.
-- Screen Recording permission for screenshots and screen inspection.
+## Building the macOS App
 
-Computer-control tools are blocked until the app is in computer-use mode.
+### Install to Applications & Dock
+
+1. Build the distributable:
+   ```bash
+   npm run dist:mac
+   ```
+
+2. Find the built app:
+   - DMG installer: `release/Luna Voice-3.0.0.dmg`
+   - Or direct app: `release/mac/Luna Voice.app`
+
+3. Install:
+   - Open the DMG and drag Luna Voice to Applications, OR
+   - Copy `Luna Voice.app` to `/Applications`
+
+4. Keep in Dock:
+   - Launch Luna Voice from Applications
+   - Right-click the Dock icon → Options → Keep in Dock
+
+### Development Build
+
+For a quick local build without creating a DMG:
+
+```bash
+npm run pack:mac
+# App at: release/mac/Luna Voice.app
+```
 
 ## Development
 
 ```bash
-npm run dev
+npm run dev       # Start dev server + Electron
+npm run typecheck # Type check
+npm run build     # Production build (web assets only)
 ```
 
-This starts Vite on `127.0.0.1:5173` and launches Electron.
+## macOS Permissions
 
-Other useful commands:
+Luna Voice may request:
+- **Microphone** - Required for voice conversations
+- **Accessibility** - Required for computer-control tools
+- **Screen Recording** - Required for screenshots
 
-```bash
-npm run typecheck
-npm run build
-npm start
-```
+## Controls
 
-## Runtime Data
+- **Call** - Connect to Luna voice agent
+- **Mute** - Toggle microphone
+- **End** - Disconnect call
+- **Volume** - Adjust playback volume
+- **Keyboard** - Type messages instead of speaking
+- **Computer** - Switch to computer-use mode
+- **Panel** - Toggle artifact panel
+- **History** - Show conversation log
+- **Restart** - Restart the app (confirms if call is active)
 
-The app creates a local `data/` directory for notes, records, generated images, and thumbnail-board state. That directory is intentionally ignored by Git.
+## Singularity Horizon
 
-Do not commit:
-
-- `.env.local`
-- Anything under `data/`
-- `dist/`
-- `node_modules/`
-
-## Security Notes
-
-- API keys are loaded only from local environment files.
-- `.env.local` and all `.env.*` files are ignored except `.env.example`.
-- Generated images and local database files are ignored.
-- Risky computer-control actions should require explicit confirmation.
-- Typing and pressing Enter in computer-use mode are intentionally allowed without extra confirmation because they are core voice-control actions.
-
-Before publishing a fork, run:
-
-```bash
-npm run typecheck
-npm run build
-git status --short
-```
-
-Then verify that no local secrets or runtime data are staged.
+The main avatar is a WebGL2 visualization with:
+- Interactive drag-to-orbit camera
+- Mood-reactive states (idle → listening → speaking)
+- HUD overlay with real-time metrics
+- Respects `prefers-reduced-motion`
 
 ## License
 

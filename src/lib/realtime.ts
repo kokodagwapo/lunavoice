@@ -1,7 +1,7 @@
-import type { RickyArtifact, RickyToolCall, RickyToolResult, RickyToolSpec } from "../vite-env";
+import type { LunaArtifact, LunaToolCall, LunaToolResult, LunaToolSpec } from "../vite-env";
 
-export type RickyConnectionState = "idle" | "connecting" | "connected" | "error";
-export type RickyMood = "idle" | "listening" | "thinking" | "speaking" | "working" | "error";
+export type LunaConnectionState = "idle" | "connecting" | "connected" | "error";
+export type LunaMood = "idle" | "listening" | "thinking" | "speaking" | "working" | "error";
 
 export type MouthShape = {
   open: number;
@@ -12,126 +12,65 @@ export type MouthShape = {
 
 export type TranscriptEntry = {
   id: string;
-  role: "user" | "ricky" | "system" | "tool";
+  role: "user" | "luna" | "system" | "tool";
   text: string;
   at: string;
 };
 
 export type RealtimeCallbacks = {
-  onConnectionState: (state: RickyConnectionState) => void;
-  onMood: (mood: RickyMood) => void;
+  onConnectionState: (state: LunaConnectionState) => void;
+  onMood: (mood: LunaMood) => void;
   onMouthShape: (shape: MouthShape) => void;
   onTranscript: (entry: TranscriptEntry) => void;
-  onArtifact: (artifact: RickyArtifact) => void;
+  onArtifact: (artifact: LunaArtifact) => void;
   onMode: (mode: "display" | "computer") => void;
   onStatus: (message: string) => void;
   onThumbnailReady: () => void;
 };
 
-type ServerEvent = {
-  type?: string;
-  delta?: string;
-  transcript?: string;
-  response?: {
-    output?: ResponseOutputItem[];
-  };
-  item?: {
-    type?: string;
-    role?: string;
-    content?: Array<{ transcript?: string; text?: string }>;
-  };
-  error?: {
-    message?: string;
-  };
+type ElevenLabsMessage = {
+  type: string;
+  audio?: { chunk: string };
+  user_transcript?: string;
+  agent_response?: string;
+  interruption?: unknown;
+  ping?: { event_id: number };
+  conversation_initiation_metadata?: unknown;
 };
 
-type ResponseOutputItem = {
-  type?: string;
-  name?: string;
-  call_id?: string;
-  arguments?: string;
-  content?: Array<{ transcript?: string; text?: string }>;
-};
-
-const realtimeUrl = "https://api.openai.com/v1/realtime/calls";
-
-export class RickyRealtimeClient {
-  private pc: RTCPeerConnection | null = null;
-  private dc: RTCDataChannel | null = null;
+export class LunaRealtimeClient {
+  private ws: WebSocket | null = null;
   private micStream: MediaStream | null = null;
-  private callbacks: RealtimeCallbacks;
-  private currentAssistantText = "";
-  private toolSpecs: RickyToolSpec[] = [];
-  private toolRunning = false;
   private audioContext: AudioContext | null = null;
-  private outputAnalyser: AnalyserNode | null = null;
-  private outputMeterFrame = 0;
+  private callbacks: RealtimeCallbacks;
+  private toolSpecs: LunaToolSpec[] = [];
+  private toolRunning = false;
   private smoothedMouthShape: MouthShape = silentMouthShape();
+  private outputMeterFrame = 0;
+  private playbackContext: AudioContext | null = null;
+  private audioQueue: ArrayBuffer[] = [];
+  private isPlayingAudio = false;
+  private mediaRecorder: MediaRecorder | null = null;
 
   constructor(callbacks: RealtimeCallbacks) {
     this.callbacks = callbacks;
   }
 
   async connect(): Promise<void> {
-    if (this.pc) return;
+    if (this.ws) return;
     this.callbacks.onConnectionState("connecting");
     this.callbacks.onMood("thinking");
-    this.callbacks.onStatus("Minting a Realtime client secret.");
+    this.callbacks.onStatus("Connecting to Luna...");
 
     try {
-      this.toolSpecs = await window.ricky.getToolSpecs();
-      const token = await window.ricky.createRealtimeToken();
-      const pc = new RTCPeerConnection();
-      const audio = document.createElement("audio");
-      audio.autoplay = true;
+      this.toolSpecs = await window.luna.getToolSpecs();
+      const config = await window.luna.getRealtimeConfig();
 
-      pc.ontrack = (event) => {
-        audio.srcObject = event.streams[0];
-        this.startOutputMeter(event.streams[0]);
-      };
-
-      this.micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      pc.addTrack(this.micStream.getAudioTracks()[0], this.micStream);
-
-      const dc = pc.createDataChannel("oai-events");
-      dc.addEventListener("open", () => {
-        this.callbacks.onConnectionState("connected");
-        this.callbacks.onMood("idle");
-        this.callbacks.onStatus("Ricky is live. Start talking naturally.");
-      });
-      dc.addEventListener("message", (event) => {
-        void this.handleServerEvent(event.data);
-      });
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const sdpResponse = await fetch(realtimeUrl, {
-        method: "POST",
-        body: offer.sdp,
-        headers: {
-          Authorization: `Bearer ${token.value}`,
-          "Content-Type": "application/sdp",
-        },
-      });
-
-      if (!sdpResponse.ok) {
-        throw new Error(`Realtime WebRTC call failed: ${sdpResponse.status} ${await sdpResponse.text()}`);
+      if (config.provider !== "elevenlabs") {
+        throw new Error("Only ElevenLabs provider is supported");
       }
 
-      await pc.setRemoteDescription({
-        type: "answer",
-        sdp: await sdpResponse.text(),
-      });
-
-      this.pc = pc;
-      this.dc = dc;
+      await this.connectElevenLabs(config.signedUrl);
     } catch (error) {
       this.callbacks.onConnectionState("error");
       this.callbacks.onMood("error");
@@ -140,187 +79,216 @@ export class RickyRealtimeClient {
     }
   }
 
-  disconnect(): void {
-    this.dc?.close();
-    this.pc?.close();
-    this.micStream?.getTracks().forEach((track) => track.stop());
-    this.stopOutputMeter();
-    this.dc = null;
-    this.pc = null;
-    this.micStream = null;
-    this.currentAssistantText = "";
-    this.callbacks.onConnectionState("idle");
-    this.callbacks.onMood("idle");
-    this.callbacks.onMouthShape(silentMouthShape());
-  }
+  private async connectElevenLabs(signedUrl: string): Promise<void> {
+    const ws = new WebSocket(signedUrl);
+    this.ws = ws;
 
-  sendText(text: string): void {
-    if (!this.dc || this.dc.readyState !== "open") {
-      this.callbacks.onStatus("Connect Ricky before sending a text prompt.");
-      return;
-    }
-    this.callbacks.onTranscript(newEntry("user", text));
-    this.sendEvent({
-      type: "conversation.item.create",
-      item: {
-        type: "message",
-        role: "user",
-        content: [{ type: "input_text", text }],
-      },
-    });
-    this.sendEvent({ type: "response.create" });
-  }
+    ws.onopen = () => {
+      this.callbacks.onConnectionState("connected");
+      this.callbacks.onMood("idle");
+      this.callbacks.onStatus("Luna is ready. Start talking.");
+      void this.startAudioCapture();
+    };
 
-  private async handleServerEvent(raw: string): Promise<void> {
-    const event = safeParseEvent(raw);
-    if (!event.type) return;
+    ws.onmessage = async (event) => {
+      const data = event.data;
+      let message: ElevenLabsMessage;
+      
+      if (data instanceof Blob) {
+        const text = await data.text();
+        message = JSON.parse(text) as ElevenLabsMessage;
+      } else {
+        message = JSON.parse(data as string) as ElevenLabsMessage;
+      }
 
-    if (event.type === "error") {
+      await this.handleElevenLabsMessage(message);
+    };
+
+    ws.onerror = () => {
+      this.callbacks.onConnectionState("error");
       this.callbacks.onMood("error");
-      this.callbacks.onStatus(event.error?.message || "Realtime API returned an error.");
-      return;
-    }
+      this.callbacks.onStatus("WebSocket connection error");
+    };
 
-    if (event.type === "input_audio_buffer.speech_started") {
-      this.callbacks.onMood("listening");
-      return;
-    }
-
-    if (event.type === "input_audio_buffer.speech_stopped") {
-      this.callbacks.onMood("thinking");
-      return;
-    }
-
-    if (event.type === "response.audio.delta" || event.type === "response.output_audio.delta") {
-      this.callbacks.onMood("speaking");
-      return;
-    }
-
-    if (event.type === "response.output_audio.done" || event.type === "response.audio.done") {
-      if (!this.toolRunning) this.callbacks.onMood("idle");
-      return;
-    }
-
-    if (
-      event.type === "response.audio_transcript.delta" ||
-      event.type === "response.output_audio_transcript.delta" ||
-      event.type === "response.output_text.delta"
-    ) {
-      this.currentAssistantText += event.delta || "";
-      return;
-    }
-
-    if (event.type === "conversation.item.input_audio_transcription.completed") {
-      const transcript = event.transcript || collectItemText(event.item);
-      if (transcript) this.callbacks.onTranscript(newEntry("user", transcript));
-      return;
-    }
-
-    if (event.type === "response.done") {
-      const output = event.response?.output || [];
-      const spoken = this.currentAssistantText || output.map(collectOutputText).filter(Boolean).join("\n");
-      if (spoken) this.callbacks.onTranscript(newEntry("ricky", spoken));
-      this.currentAssistantText = "";
-
-      const functionCalls = output.filter((item) => item.type === "function_call" && item.name && item.call_id);
-      if (functionCalls.length > 0) {
-        await this.executeFunctionCalls(functionCalls);
-      } else if (!this.toolRunning) {
+    ws.onclose = () => {
+      if (this.callbacks) {
+        this.callbacks.onConnectionState("idle");
         this.callbacks.onMood("idle");
       }
-    }
+    };
   }
 
-  private async executeFunctionCalls(items: ResponseOutputItem[]): Promise<void> {
-    this.toolRunning = true;
-    this.callbacks.onMood("working");
-    let shouldCreateResponse = false;
-
-    for (const item of items) {
-      const callId = item.call_id;
-      const name = item.name;
-      if (!callId || !name) continue;
-
-      const parsedArgs = parseToolArguments(item.arguments || "{}");
-      const knownTool = this.toolSpecs.some((tool) => tool.name === name);
-      if (!knownTool) {
-        await this.returnToolOutput(callId, {
-          ok: false,
-          error: `Tool is not available: ${name}`,
-        });
-        shouldCreateResponse = true;
-        continue;
-      }
-
-      this.callbacks.onTranscript(newEntry("tool", `Running ${name}`));
-      if (name === "image_generate") {
-        this.callbacks.onArtifact({
-          title: "Generating Image",
-          kind: "imageLoading",
-          content: typeof parsedArgs.prompt === "string" ? parsedArgs.prompt : "Ricky is generating an image.",
-        });
-      }
-      if (name === "thumbnail_generate" || name === "thumbnail_edit") {
-        const loadingResult = await window.ricky.executeTool({
-          name: "thumbnail_loading_prepare",
-          arguments: {
-            ...parsedArgs,
-            mode: name === "thumbnail_edit" ? "edit" : "generate",
-          },
-        } satisfies RickyToolCall);
-        if (typeof loadingResult.runId === "string") parsedArgs.runId = loadingResult.runId;
-        if (typeof loadingResult.targetId === "string") parsedArgs.targetId = loadingResult.targetId;
-        if (loadingResult.artifact) this.callbacks.onArtifact(loadingResult.artifact);
-      }
-      const result = await window.ricky.executeTool({ name, arguments: parsedArgs } satisfies RickyToolCall);
-      if (result.mode === "display" || result.mode === "computer") {
-        this.callbacks.onMode(result.mode);
-      }
-      if (result.artifact) this.callbacks.onArtifact(result.artifact);
-      if (result.thumbnailReady === true) this.callbacks.onThumbnailReady();
-      if (result.silent !== true) shouldCreateResponse = true;
-      await this.returnToolOutput(callId, result);
-    }
-
-    if (shouldCreateResponse) this.sendEvent({ type: "response.create" });
-    this.toolRunning = false;
-  }
-
-  private async returnToolOutput(callId: string, result: RickyToolResult): Promise<void> {
-    this.sendEvent({
-      type: "conversation.item.create",
-      item: {
-        type: "function_call_output",
-        call_id: callId,
-        output: JSON.stringify(sanitizeToolResult(result)),
+  private async startAudioCapture(): Promise<void> {
+    this.micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 16000,
       },
     });
+
+    const audioContext = new AudioContext({ sampleRate: 16000 });
+    this.audioContext = audioContext;
+    const source = audioContext.createMediaStreamSource(this.micStream);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+    let isSpeaking = false;
+    let silenceFrames = 0;
+    const SILENCE_THRESHOLD = 0.01;
+    const SILENCE_FRAMES_TO_STOP = 20;
+
+    processor.onaudioprocess = (event) => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+      const inputData = event.inputBuffer.getChannelData(0);
+      
+      let sum = 0;
+      for (let i = 0; i < inputData.length; i++) {
+        sum += inputData[i] * inputData[i];
+      }
+      const rms = Math.sqrt(sum / inputData.length);
+
+      if (rms > SILENCE_THRESHOLD) {
+        if (!isSpeaking) {
+          isSpeaking = true;
+          this.callbacks.onMood("listening");
+        }
+        silenceFrames = 0;
+      } else if (isSpeaking) {
+        silenceFrames++;
+        if (silenceFrames > SILENCE_FRAMES_TO_STOP) {
+          isSpeaking = false;
+          if (!this.toolRunning && !this.isPlayingAudio) {
+            this.callbacks.onMood("thinking");
+          }
+        }
+      }
+
+      const pcm16 = new Int16Array(inputData.length);
+      for (let i = 0; i < inputData.length; i++) {
+        const s = Math.max(-1, Math.min(1, inputData[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+
+      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+      
+      this.ws?.send(JSON.stringify({
+        user_audio_chunk: base64Audio,
+      }));
+    };
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
   }
 
-  private sendEvent(event: Record<string, unknown>): void {
-    if (this.dc?.readyState === "open") {
-      this.dc.send(JSON.stringify(event));
+  private async handleElevenLabsMessage(msg: ElevenLabsMessage): Promise<void> {
+    switch (msg.type) {
+      case "conversation_initiation_metadata":
+        break;
+
+      case "audio":
+        if (msg.audio?.chunk) {
+          this.callbacks.onMood("speaking");
+          this.playAudioChunk(msg.audio.chunk);
+        }
+        break;
+
+      case "user_transcript":
+        if (msg.user_transcript) {
+          this.callbacks.onTranscript(newEntry("user", msg.user_transcript));
+        }
+        break;
+
+      case "agent_response":
+        if (msg.agent_response) {
+          this.callbacks.onTranscript(newEntry("luna", msg.agent_response));
+        }
+        break;
+
+      case "interruption":
+        this.audioQueue = [];
+        this.isPlayingAudio = false;
+        this.callbacks.onMood("listening");
+        break;
+
+      case "ping":
+        if (msg.ping?.event_id !== undefined) {
+          this.ws?.send(JSON.stringify({
+            type: "pong",
+            event_id: msg.ping.event_id,
+          }));
+        }
+        break;
+
+      default:
+        break;
     }
   }
 
-  private startOutputMeter(stream: MediaStream): void {
-    this.stopOutputMeter();
+  private playAudioChunk(base64Data: string): void {
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    this.audioQueue.push(bytes.buffer);
+    void this.processAudioQueue();
+  }
 
-    const audioContext = new AudioContext();
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
+  private async processAudioQueue(): Promise<void> {
+    if (this.isPlayingAudio || this.audioQueue.length === 0) return;
+    this.isPlayingAudio = true;
+
+    if (!this.playbackContext || this.playbackContext.state === "closed") {
+      this.playbackContext = new AudioContext({ sampleRate: 16000 });
+    }
+
+    const analyser = this.playbackContext.createAnalyser();
     analyser.fftSize = 1024;
-    analyser.smoothingTimeConstant = 0.72;
-    source.connect(analyser);
+    analyser.connect(this.playbackContext.destination);
 
-    this.audioContext = audioContext;
-    this.outputAnalyser = analyser;
+    this.startMouthAnimation(analyser);
 
+    while (this.audioQueue.length > 0) {
+      const chunk = this.audioQueue.shift()!;
+      
+      const pcm16 = new Int16Array(chunk);
+      const float32 = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768;
+      }
+
+      const audioBuffer = this.playbackContext.createBuffer(1, float32.length, 16000);
+      audioBuffer.getChannelData(0).set(float32);
+
+      const source = this.playbackContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(analyser);
+
+      source.start();
+      await new Promise<void>((resolve) => {
+        source.onended = () => resolve();
+      });
+    }
+
+    this.isPlayingAudio = false;
+    this.stopMouthAnimation();
+    if (!this.toolRunning) {
+      this.callbacks.onMood("idle");
+    }
+  }
+
+  private startMouthAnimation(analyser: AnalyserNode): void {
     const samples = new Uint8Array(analyser.fftSize);
     const frequencies = new Uint8Array(analyser.frequencyBinCount);
+
     const tick = () => {
+      if (!this.isPlayingAudio) return;
+
       analyser.getByteTimeDomainData(samples);
       analyser.getByteFrequencyData(frequencies);
+
       let total = 0;
       for (const sample of samples) {
         const centered = (sample - 128) / 128;
@@ -330,8 +298,6 @@ export class RickyRealtimeClient {
       const energy = clamp01(rms * 10.5);
       const bands = getSpeechBands(frequencies);
 
-      // Simple realtime viseme approximation: low energy rounds the mouth,
-      // mid energy opens it, high energy stretches it for consonants/ee sounds.
       const target: MouthShape = {
         open: clamp01(energy * 0.75 + bands.mid * 0.45 - bands.high * 0.16),
         width: clamp01(0.28 + bands.mid * 0.55 + bands.high * 0.74 - bands.low * 0.28),
@@ -346,15 +312,42 @@ export class RickyRealtimeClient {
     tick();
   }
 
-  private stopOutputMeter(): void {
+  private stopMouthAnimation(): void {
     if (this.outputMeterFrame) {
       window.cancelAnimationFrame(this.outputMeterFrame);
       this.outputMeterFrame = 0;
     }
-    void this.audioContext?.close();
-    this.audioContext = null;
-    this.outputAnalyser = null;
     this.smoothedMouthShape = silentMouthShape();
+    this.callbacks.onMouthShape(this.smoothedMouthShape);
+  }
+
+  disconnect(): void {
+    this.ws?.close();
+    this.micStream?.getTracks().forEach((track) => track.stop());
+    this.stopMouthAnimation();
+    void this.audioContext?.close();
+    void this.playbackContext?.close();
+    this.ws = null;
+    this.micStream = null;
+    this.audioContext = null;
+    this.playbackContext = null;
+    this.audioQueue = [];
+    this.isPlayingAudio = false;
+    this.callbacks.onConnectionState("idle");
+    this.callbacks.onMood("idle");
+    this.callbacks.onMouthShape(silentMouthShape());
+  }
+
+  sendText(text: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.callbacks.onStatus("Connect Luna before sending a text prompt.");
+      return;
+    }
+    this.callbacks.onTranscript(newEntry("user", text));
+    this.ws.send(JSON.stringify({
+      type: "user_message",
+      user_message: text,
+    }));
   }
 }
 
@@ -403,52 +396,4 @@ export function newEntry(role: TranscriptEntry["role"], text: string): Transcrip
     text,
     at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
   };
-}
-
-function safeParseEvent(raw: string): ServerEvent {
-  try {
-    return JSON.parse(raw) as ServerEvent;
-  } catch {
-    return {};
-  }
-}
-
-function parseToolArguments(raw: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function sanitizeToolResult(result: RickyToolResult): RickyToolResult {
-  if (!result.artifact) return result;
-
-  const { artifact, ...rest } = result;
-  return {
-    ...rest,
-    artifact: {
-      title: artifact.title,
-      kind: artifact.kind,
-      content:
-        artifact.kind === "thumbnailBoard"
-          ? "Thumbnail board rendered in the UI. Use the compact board field for exact numbers, selected state, and loading state."
-          : artifact.kind === "image" || artifact.kind === "imageLoading"
-            ? "Image rendered in the UI."
-            : artifact.content.length > 1200
-              ? `${artifact.content.slice(0, 1200)}...`
-              : artifact.content,
-      language: artifact.language,
-      fullscreen: artifact.fullscreen,
-    },
-  };
-}
-
-function collectItemText(item: ServerEvent["item"]): string {
-  return item?.content?.map((part) => part.transcript || part.text || "").filter(Boolean).join("\n") || "";
-}
-
-function collectOutputText(item: ResponseOutputItem): string {
-  return item.content?.map((part) => part.transcript || part.text || "").filter(Boolean).join("\n") || "";
 }
