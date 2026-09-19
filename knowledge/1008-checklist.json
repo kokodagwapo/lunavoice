@@ -1,0 +1,114 @@
+{
+  "title": "Uniform Underwriting and Transmittal Summary (1008) Checklist",
+  "disclaimer": "This checklist is for guidance only. The 1008 is completed by the lender/underwriter based on verified loan data. Never fabricate property values, income figures, or credit scores.",
+  "sections": [
+    {
+      "id": "loan_info",
+      "name": "Section I: Loan Information",
+      "items": [
+        { "id": "lender_loan_number", "label": "Lender loan number", "required": true, "type": "text" },
+        { "id": "agency_case_number", "label": "Agency case number (FHA/VA/USDA if applicable)", "required": false, "type": "text" },
+        { "id": "loan_type", "label": "Loan type", "required": true, "type": "select", "options": ["Conventional", "FHA", "VA", "USDA-RD", "Other"] },
+        { "id": "loan_purpose", "label": "Loan purpose", "required": true, "type": "select", "options": ["Purchase", "Refinance", "Construction", "Construction-Permanent", "Other"] },
+        { "id": "loan_amount", "label": "Loan amount", "required": true, "type": "currency" },
+        { "id": "interest_rate", "label": "Note interest rate", "required": true, "type": "percentage" },
+        { "id": "loan_term", "label": "Loan term (months)", "required": true, "type": "number" },
+        { "id": "amortization_type", "label": "Amortization type", "required": true, "type": "select", "options": ["Fixed Rate", "ARM", "GPM", "Other"] }
+      ]
+    },
+    {
+      "id": "property_info",
+      "name": "Section II: Property Information",
+      "items": [
+        { "id": "property_address", "label": "Property address", "required": true, "type": "address" },
+        { "id": "property_type", "label": "Property type", "required": true, "type": "select", "options": ["Single Family", "Condo", "PUD", "Co-op", "Manufactured", "2-4 Units"] },
+        { "id": "occupancy", "label": "Occupancy status", "required": true, "type": "select", "options": ["Primary Residence", "Second Home", "Investment"] },
+        { "id": "sales_price", "label": "Sales price / Cost", "required": true, "type": "currency", "note": "Purchase price or construction cost" },
+        { "id": "appraised_value", "label": "Appraised value", "required": true, "type": "currency", "note": "From appraisal report" },
+        { "id": "legal_description", "label": "Legal description on file", "required": true, "type": "boolean" }
+      ]
+    },
+    {
+      "id": "borrower_info",
+      "name": "Section III: Borrower Information",
+      "items": [
+        { "id": "borrower_name", "label": "Borrower name", "required": true, "type": "text" },
+        { "id": "coborrower_name", "label": "Co-borrower name (if applicable)", "required": false, "type": "text" },
+        { "id": "ssn_verified", "label": "SSN verified", "required": true, "type": "boolean", "sensitive": true },
+        { "id": "credit_score_borrower", "label": "Borrower credit score (representative)", "required": true, "type": "number", "note": "Middle score from credit report" },
+        { "id": "credit_score_coborrower", "label": "Co-borrower credit score", "required": false, "type": "number" }
+      ]
+    },
+    {
+      "id": "income_assets",
+      "name": "Section IV: Income and Assets",
+      "items": [
+        { "id": "monthly_income", "label": "Total monthly income", "required": true, "type": "currency", "note": "Verified qualifying income" },
+        { "id": "income_documentation", "label": "Income documentation type", "required": true, "type": "select", "options": ["Full Doc", "Alt Doc", "Stated"] },
+        { "id": "employment_verified", "label": "Employment verified", "required": true, "type": "boolean" },
+        { "id": "self_employed", "label": "Self-employed", "required": true, "type": "boolean" },
+        { "id": "liquid_assets", "label": "Total liquid assets verified", "required": true, "type": "currency" },
+        { "id": "reserves_months", "label": "Months of reserves", "required": true, "type": "number", "note": "Post-closing reserves" }
+      ]
+    },
+    {
+      "id": "ratios",
+      "name": "Section V: Qualifying Ratios",
+      "items": [
+        { "id": "housing_expense", "label": "Total monthly housing expense (PITI)", "required": true, "type": "currency" },
+        { "id": "total_obligations", "label": "Total monthly obligations", "required": true, "type": "currency" },
+        { "id": "front_ratio", "label": "Front-end ratio (housing)", "required": true, "type": "percentage", "note": "Housing expense / Income" },
+        { "id": "back_ratio", "label": "Back-end ratio (DTI)", "required": true, "type": "percentage", "note": "Total obligations / Income" },
+        { "id": "ltv", "label": "LTV ratio", "required": true, "type": "percentage" },
+        { "id": "cltv", "label": "CLTV ratio", "required": false, "type": "percentage", "note": "If subordinate financing" }
+      ]
+    },
+    {
+      "id": "underwriting",
+      "name": "Section VI: Underwriting Decision",
+      "items": [
+        { "id": "aus_recommendation", "label": "AUS recommendation", "required": false, "type": "select", "options": ["Approve/Eligible", "Accept", "Refer", "Caution", "Manual UW", "N/A"] },
+        { "id": "aus_system", "label": "AUS system used", "required": false, "type": "select", "options": ["DU", "LP", "GUS", "Manual", "Other"] },
+        { "id": "risk_classification", "label": "Risk classification", "required": true, "type": "select", "options": ["A-Paper", "Alt-A", "Subprime", "Agency Eligible"] },
+        { "id": "decision", "label": "Underwriting decision", "required": true, "type": "select", "options": ["Approved", "Approved with Conditions", "Suspended", "Denied"] },
+        { "id": "conditions_list", "label": "Conditions (if any)", "required": false, "type": "text" }
+      ]
+    },
+    {
+      "id": "secondary_market",
+      "name": "Section VII: Secondary Market Data",
+      "items": [
+        { "id": "investor", "label": "Investor / Purchaser", "required": false, "type": "text" },
+        { "id": "product_code", "label": "Product code", "required": false, "type": "text" },
+        { "id": "pool_number", "label": "Pool number (if applicable)", "required": false, "type": "text" },
+        { "id": "delivery_type", "label": "Delivery type", "required": false, "type": "select", "options": ["Cash", "MBS", "Whole Loan", "Servicing Released", "Servicing Retained"] },
+        { "id": "mi_required", "label": "Mortgage insurance required", "required": true, "type": "boolean" },
+        { "id": "mi_company", "label": "MI company (if applicable)", "required": false, "type": "text" },
+        { "id": "mi_coverage", "label": "MI coverage percentage", "required": false, "type": "percentage" }
+      ]
+    },
+    {
+      "id": "signatures",
+      "name": "Section VIII: Certifications",
+      "items": [
+        { "id": "underwriter_name", "label": "Underwriter name", "required": true, "type": "text" },
+        { "id": "underwriter_date", "label": "Underwriting date", "required": true, "type": "date" },
+        { "id": "supervisor_review", "label": "Supervisor review required", "required": false, "type": "boolean" },
+        { "id": "qa_review", "label": "QA/QC review completed", "required": false, "type": "boolean" }
+      ]
+    }
+  ],
+  "documents": [
+    { "id": "loan_application", "label": "Complete 1003 on file", "required": true },
+    { "id": "credit_report", "label": "Tri-merge credit report", "required": true },
+    { "id": "appraisal", "label": "Appraisal report", "required": true },
+    { "id": "title_commitment", "label": "Title commitment", "required": true },
+    { "id": "income_docs", "label": "Income documentation (paystubs, W-2s, tax returns)", "required": true },
+    { "id": "asset_docs", "label": "Asset documentation (bank statements)", "required": true },
+    { "id": "voe", "label": "Verification of Employment (VOE)", "required": false },
+    { "id": "vod", "label": "Verification of Deposit (VOD)", "required": false },
+    { "id": "aus_findings", "label": "AUS findings certificate", "required": false },
+    { "id": "flood_cert", "label": "Flood certification", "required": true },
+    { "id": "hazard_insurance", "label": "Hazard insurance binder", "required": true }
+  ]
+}

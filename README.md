@@ -35,11 +35,13 @@ Luna Voice is a desktop AI voice companion powered by ElevenLabs Conversational 
 - **Tools**: `kb_search`, `kb_topics`
 - *Disclaimer: Educational guidance only, not legal advice*
 
-#### 1003 Loan Application Checklist
-- Guided walkthrough of Uniform Residential Loan Application sections
-- Progress tracking across sessions
+#### 1003/1008 Loan Application Checklists
+- **1003 (URLA)**: Guided walkthrough of Uniform Residential Loan Application sections (borrower info, income, assets, declarations)
+- **1008 (Transmittal)**: Underwriting transmittal summary checklist (loan info, property, ratios, underwriting decision)
+- Progress tracking across sessions for both forms
 - **Tools**: `checklist_status`, `checklist_next`, `checklist_set_value`, `checklist_reset`
-- Access via "1003" tab in left sidebar
+- Use the `form` parameter: `form: "1003"` (default) or `form: "1008"`
+- Access via "Memory" tab in left sidebar → Knowledge Base
 
 #### OCR
 - Extract text from images and scanned documents
@@ -115,11 +117,14 @@ npm run dev
 2. Ask Luna: "What is HMDA?" or "Explain VA loans"
 3. Results cite knowledge base articles
 
-### 1003 Checklist
-1. Switch to **1003** tab in left sidebar
-2. Click "Continue 1003" to start/resume
-3. Follow prompts to fill in loan application sections
-4. Upload documents for OCR extraction
+### 1003/1008 Checklists
+1. Ask Luna: "Help me with a 1003 loan application" or "Start a 1008 underwriting checklist"
+2. Follow prompts to fill in sections step by step
+3. Say "status" to see progress, "skip" to skip an item
+4. Upload documents for OCR extraction to assist with data entry
+
+**1003 (URLA)** - For borrowers filling out the application
+**1008 (Transmittal)** - For underwriters completing the summary
 
 ### OCR
 1. Upload an image (paystub, W-2, ID)
@@ -159,8 +164,31 @@ npm run build     # Production build
 ## macOS Permissions
 
 - **Microphone** - Required for voice conversations
-- **Accessibility** - Required for computer-control tools
+- **Accessibility** - Required for computer-control tools (typing, clicking, opening apps)
 - **Screen Recording** - Required for screenshots
+
+### Enabling Computer Use Mode
+
+Luna can control your Mac (open apps, type, click, scroll, take screenshots) when in **computer use mode**:
+
+1. **Enable the mode**: Say "switch to computer use mode" or ask Luna to control your computer
+2. **Grant Accessibility permission**:
+   - Open **System Settings** → **Privacy & Security** → **Accessibility**
+   - Add **SmartStart** (or the Electron app) to the allowed list
+   - You may need to restart the app after granting permission
+3. **Check permissions**: Say "check computer permissions" to verify the setup
+
+If computer tools fail with permission errors, Luna will show instructions to fix it.
+
+#### Available Computer Tools
+- `computer_open_app` - Open apps by name
+- `computer_type_text` - Type text into the active app
+- `computer_press_key` - Press Enter, Tab, arrows, etc.
+- `computer_click` - Click at screen coordinates
+- `computer_scroll` - Scroll the active window
+- `screen_snapshot` - Take a screenshot
+- `ui_inspect` - Inspect the frontmost window
+- `computer_check_permissions` - Verify Accessibility access
 
 ## Phase 2 Checklist
 
@@ -169,13 +197,16 @@ npm run build     # Production build
 | File upload (CSV/XLSX/PDF/DOCX/images) | ✅ Done |
 | Memory system (save/search/list/delete) | ✅ Done |
 | Knowledge base (US lending) | ✅ Done |
-| 1003 checklist guidance | ✅ Done |
+| 1003 URLA checklist guidance | ✅ Done |
+| 1008 Underwriting transmittal checklist | ✅ Done |
+| 50-state regulation reference | ✅ Done |
 | OCR extraction | ✅ Done |
 | Web search (Exa) | ✅ Done |
 | LOS API knowledge (Encompass, Calyx, etc.) | ✅ Done |
 | Connector framework | ✅ Done |
 | Secure API key management | ✅ Done |
 | Settings panel | ✅ Done |
+| Computer use mode + permission check | ✅ Done |
 | App connectors (Gmail, Encompass, REST) | 🔲 Stub |
 
 ### LOS API Knowledge

@@ -11,7 +11,16 @@ const dataDir = path.join(process.cwd(), "data");
 const memoryPath = path.join(dataDir, "luna-memory.json");
 const knowledgeDir = path.join(process.cwd(), "knowledge");
 const uploadsDir = path.join(dataDir, "uploads");
-const checklistPath = path.join(dataDir, "1003-session.json");
+
+function getChecklistPath(form) {
+  const formType = form === "1008" ? "1008" : "1003";
+  return path.join(dataDir, `${formType}-session.json`);
+}
+
+function getChecklistJsonPath(form) {
+  const formType = form === "1008" ? "1008" : "1003";
+  return path.join(knowledgeDir, `${formType}-checklist.json`);
+}
 
 // ============== Memory System ==============
 
@@ -367,9 +376,10 @@ async function ocrExtract(args) {
   }
 }
 
-// ============== 1003 Checklist ==============
+// ============== 1003/1008 Checklist ==============
 
-async function ensureChecklistSession() {
+async function ensureChecklistSession(form = "1003") {
+  const checklistPath = getChecklistPath(form);
   try {
     await fs.access(checklistPath);
     const raw = await fs.readFile(checklistPath, "utf8");
@@ -377,30 +387,36 @@ async function ensureChecklistSession() {
   } catch {
     const session = {
       id: crypto.randomUUID(),
+      form: form === "1008" ? "1008" : "1003",
       startedAt: new Date().toISOString(),
-      currentSection: "borrower_info",
+      currentSection: form === "1008" ? "loan_info" : "borrower_info",
       currentItem: 0,
       completed: {},
       values: {},
     };
+    await fs.mkdir(dataDir, { recursive: true });
     await fs.writeFile(checklistPath, JSON.stringify(session, null, 2));
     return session;
   }
 }
 
-async function saveChecklistSession(session) {
+async function saveChecklistSession(session, form = "1003") {
+  const checklistPath = getChecklistPath(form);
   await fs.writeFile(checklistPath, JSON.stringify(session, null, 2));
 }
 
-async function loadChecklist() {
-  const checklistJsonPath = path.join(knowledgeDir, "1003-checklist.json");
+async function loadChecklist(form = "1003") {
+  const checklistJsonPath = getChecklistJsonPath(form);
   const raw = await fs.readFile(checklistJsonPath, "utf8");
   return JSON.parse(raw);
 }
 
-async function checklistStatus() {
-  const session = await ensureChecklistSession();
-  const checklist = await loadChecklist();
+async function checklistStatus(args = {}) {
+  const form = args.form === "1008" ? "1008" : "1003";
+  const session = await ensureChecklistSession(form);
+  const checklist = await loadChecklist(form);
+  
+  const formName = form === "1008" ? "1008 Underwriting Transmittal" : "1003 Loan Application";
   
   let totalItems = 0;
   let completedItems = 0;
@@ -427,19 +443,24 @@ async function checklistStatus() {
 
   return {
     ok: true,
+    form,
     progress: overallProgress,
     sections: sectionStatus,
     artifact: {
-      title: "1003 Application Progress",
+      title: `${formName} Progress`,
       kind: "markdown",
-      content: `## Loan Application Progress: ${overallProgress}%\n\n${statusContent}\n\n*Continue with checklist_next to proceed with the next item.*`,
+      content: `## ${formName} Progress: ${overallProgress}%\n\n${statusContent}\n\n*Continue with checklist_next to proceed with the next item.*`,
     },
   };
 }
 
-async function checklistNext() {
-  const session = await ensureChecklistSession();
-  const checklist = await loadChecklist();
+async function checklistNext(args = {}) {
+  const form = args.form === "1008" ? "1008" : "1003";
+  const session = await ensureChecklistSession(form);
+  const checklist = await loadChecklist(form);
+  
+  const formName = form === "1008" ? "1008 Underwriting Transmittal" : "1003 Loan Application";
+  const formShort = form === "1008" ? "1008" : "1003";
   
   // Find next incomplete item
   for (const section of checklist.sections) {
@@ -451,10 +472,11 @@ async function checklistNext() {
 
         return {
           ok: true,
+          form,
           currentItem: item,
           currentSection: section.name,
           artifact: {
-            title: `1003: ${item.label}`,
+            title: `${formShort}: ${item.label}`,
             kind: "markdown",
             content: `## Next Item\n\n${question}\n\n---\n*Say the value, or "skip" to move on, or "status" to see progress.*`,
           },
@@ -465,17 +487,19 @@ async function checklistNext() {
 
   return {
     ok: true,
+    form,
     complete: true,
     artifact: {
-      title: "1003 Application Complete",
+      title: `${formName} Complete`,
       kind: "markdown",
-      content: "## Application Checklist Complete! 🎉\n\nAll sections have been reviewed. Use `checklist_status` to see a summary.",
+      content: `## ${formName} Checklist Complete! 🎉\n\nAll sections have been reviewed. Use \`checklist_status\` to see a summary.`,
     },
   };
 }
 
 async function checklistSetValue(args) {
-  const session = await ensureChecklistSession();
+  const form = args.form === "1008" ? "1008" : "1003";
+  const session = await ensureChecklistSession(form);
   const itemId = String(args.itemId || "");
   const value = args.value;
   const skip = args.skip === true;
@@ -488,32 +512,39 @@ async function checklistSetValue(args) {
     session.values[itemId] = { value, setAt: new Date().toISOString() };
   }
 
-  await saveChecklistSession(session);
+  await saveChecklistSession(session, form);
 
   return {
     ok: true,
+    form,
     message: skip ? `Skipped ${itemId}` : `Saved ${itemId}`,
   };
 }
 
-async function checklistReset() {
+async function checklistReset(args = {}) {
+  const form = args.form === "1008" ? "1008" : "1003";
+  const formName = form === "1008" ? "1008 Underwriting Transmittal" : "1003 Loan Application";
+  
   const session = {
     id: crypto.randomUUID(),
+    form,
     startedAt: new Date().toISOString(),
-    currentSection: "borrower_info",
+    currentSection: form === "1008" ? "loan_info" : "borrower_info",
     currentItem: 0,
     completed: {},
     values: {},
   };
-  await saveChecklistSession(session);
+  await fs.mkdir(dataDir, { recursive: true });
+  await saveChecklistSession(session, form);
   
   return {
     ok: true,
+    form,
     message: "Checklist reset. Starting fresh.",
     artifact: {
-      title: "1003 Checklist Reset",
+      title: `${formName} Reset`,
       kind: "markdown",
-      content: "## Checklist Reset\n\nStarting a fresh loan application session. Use `checklist_next` to begin.",
+      content: `## ${formName} Checklist Reset\n\nStarting a fresh session. Use \`checklist_next\` with \`form: "${form}"\` to begin.`,
     },
   };
 }
@@ -629,24 +660,28 @@ const phase2ToolSpecs = [
       additionalProperties: false,
     },
   },
-  // 1003 Checklist Tools
+  // 1003/1008 Checklist Tools
   {
     type: "function",
     name: "checklist_status",
-    description: "Show the current status of the 1003 loan application checklist.",
+    description: "Show the current status of the loan application checklist. Use form='1003' for URLA borrower application or form='1008' for underwriting transmittal summary.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        form: { type: "string", enum: ["1003", "1008"], description: "Which form checklist to check. Default is 1003." },
+      },
       additionalProperties: false,
     },
   },
   {
     type: "function",
     name: "checklist_next",
-    description: "Get the next item in the 1003 loan application checklist.",
+    description: "Get the next item in the loan application checklist. Use form='1003' for URLA or form='1008' for underwriting transmittal.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        form: { type: "string", enum: ["1003", "1008"], description: "Which form checklist. Default is 1003." },
+      },
       additionalProperties: false,
     },
   },
@@ -657,6 +692,7 @@ const phase2ToolSpecs = [
     parameters: {
       type: "object",
       properties: {
+        form: { type: "string", enum: ["1003", "1008"], description: "Which form checklist. Default is 1003." },
         itemId: { type: "string", description: "The checklist item ID" },
         value: { type: "string", description: "The value to save" },
         skip: { type: "boolean", description: "Set true to skip this item" },
@@ -668,10 +704,12 @@ const phase2ToolSpecs = [
   {
     type: "function",
     name: "checklist_reset",
-    description: "Reset the 1003 checklist to start fresh.",
+    description: "Reset the checklist to start fresh. Use form='1003' for URLA or form='1008' for underwriting transmittal.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        form: { type: "string", enum: ["1003", "1008"], description: "Which form checklist to reset. Default is 1003." },
+      },
       additionalProperties: false,
     },
   },
@@ -698,13 +736,13 @@ async function handlePhase2Tool(name, args) {
     case "ocr_extract":
       return await ocrExtract(args);
     case "checklist_status":
-      return await checklistStatus();
+      return await checklistStatus(args);
     case "checklist_next":
-      return await checklistNext();
+      return await checklistNext(args);
     case "checklist_set_value":
       return await checklistSetValue(args);
     case "checklist_reset":
-      return await checklistReset();
+      return await checklistReset(args);
     default:
       return null;
   }

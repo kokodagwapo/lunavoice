@@ -31,6 +31,8 @@ Warm, friendly, conversational. You are a woman with a gentle, supportive voice.
 # Modes
 - Display mode is the default. Use the app and artifact panel to show things. Do not control the computer.
 - Computer use mode allows desktop control tools. Only use computer tools after the user asks for computer use or asks you to control the computer.
+- When the user asks to "control my computer", "type something", "click", "open an app", or similar, FIRST ask them to say "switch to computer use mode" or call set_mode with mode "computer".
+- Computer control requires macOS Accessibility permission. If a computer_* tool fails with a permission error, call computer_check_permissions to show the user how to fix it.
 
 # Tool Behavior
 - Use read-only tools when the user's intent is clear.
@@ -47,6 +49,13 @@ Warm, friendly, conversational. You are a woman with a gentle, supportive voice.
 # Artifacts
 Use artifacts for menus, web results, graphics, notes, database tables, code snippets, and task progress. If the user asks to show, hide, or fullscreen the artifacts panel, call the artifact tool.
 For Mermaid charts, keep syntax simple: start with flowchart TD, avoid markdown fences, avoid parentheses in node labels, and use short alphanumeric node IDs.
+
+# Lending and Borrower Guidance
+- Use kb_search to find information about US lending topics (HMDA, CFPB, mortgages, state regulations, LOS systems, compliance).
+- For loan application help, use the checklist tools (checklist_status, checklist_next, checklist_set_value) to guide borrowers through the 1003 URLA or 1008 Underwriting forms step by step.
+- NEVER invent personal information like SSN, income, account numbers, or addresses. Always ask the borrower to provide these directly.
+- When discussing state-specific rules, always remind the user to verify with their state regulator or legal counsel.
+- Lending guidance is educational only, not legal or financial advice.
 
 # Audio
 Let the user interrupt. If audio is unclear, ask one short clarifying question instead of guessing.`;
@@ -365,6 +374,16 @@ const toolSpecs = [
       additionalProperties: false,
     },
   },
+  {
+    type: "function",
+    name: "computer_check_permissions",
+    description: "Check if macOS Accessibility permissions are granted for computer control. Call this before using other computer_* tools or when computer control fails. Returns clear fix steps if permission is missing.",
+    parameters: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+  },
 ];
 
 async function ensureData() {
@@ -458,10 +477,65 @@ function requireComputerMode() {
     return {
       ok: false,
       needsMode: "computer",
-      message: "Computer control is disabled. Ask Luna to switch to computer use mode first.",
+      message: "Computer control is disabled. Say 'switch to computer use mode' to enable desktop control.",
     };
   }
   return null;
+}
+
+async function checkAccessibilityPermission() {
+  // Use AppleScript to test if we can access System Events
+  const testScript = `tell application "System Events"
+try
+  set frontApp to first application process whose frontmost is true
+  return "granted"
+on error errMsg
+  return "denied: " & errMsg
+end try
+end tell`;
+
+  try {
+    const { stdout } = await execFileAsync("osascript", ["-e", testScript]);
+    const result = stdout.trim();
+    if (result === "granted") {
+      return { granted: true };
+    }
+    return { granted: false, error: result };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    // Check for common Accessibility denial patterns
+    if (errorMsg.includes("not allowed") || errorMsg.includes("assistive access") || errorMsg.includes("1002")) {
+      return { granted: false, error: "Accessibility access not granted" };
+    }
+    return { granted: false, error: errorMsg };
+  }
+}
+
+function accessibilityFixSteps(appName = "SmartStart") {
+  return `## Accessibility Permission Required
+
+Luna needs macOS Accessibility access to control your computer.
+
+### How to Enable
+
+1. Open **System Settings** (or System Preferences on older macOS)
+2. Go to **Privacy & Security** → **Accessibility**
+3. Click the **+** button or toggle to add/enable **${appName}**
+4. If prompted, enter your Mac password
+5. You may need to restart ${appName}
+
+### Why This Is Needed
+
+Computer control tools (clicking, typing, scrolling, inspecting UI) use macOS System Events, which requires explicit Accessibility permission for security.
+
+### Quick Command
+
+You can also open the settings directly:
+\`\`\`
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+\`\`\`
+
+After enabling, say **"check computer permissions"** to verify.`;
 }
 
 function requiresConfirmation(args) {
@@ -867,8 +941,21 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
     }
 
     if (name === "computer_type_text") {
-      await execFileAsync("osascript", ["-e", `tell application "System Events" to keystroke ${appleScriptString(args.text || "")}`]);
-      return { ok: true, message: "Typed text into the active app." };
+      try {
+        await execFileAsync("osascript", ["-e", `tell application "System Events" to keystroke ${appleScriptString(args.text || "")}`]);
+        return { ok: true, message: "Typed text into the active app." };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes("not allowed") || errorMsg.includes("assistive access") || errorMsg.includes("1002")) {
+          return {
+            ok: false,
+            permissionDenied: true,
+            error: "Accessibility permission required to type text.",
+            artifact: { title: "Permission Required", kind: "markdown", content: accessibilityFixSteps() },
+          };
+        }
+        throw error;
+      }
     }
 
     if (name === "computer_press_key") {
@@ -877,16 +964,42 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
         return { ok: false, error: `Unsupported key: ${args.key}` };
       }
       const repeat = Math.max(1, Math.min(20, Number(args.repeat || 1)));
-      await execFileAsync("osascript", ["-e", `tell application "System Events" to repeat ${repeat} times\nkey code ${keyCode}\nend repeat`]);
-      return { ok: true, message: `Pressed ${args.key}.` };
+      try {
+        await execFileAsync("osascript", ["-e", `tell application "System Events" to repeat ${repeat} times\nkey code ${keyCode}\nend repeat`]);
+        return { ok: true, message: `Pressed ${args.key}.` };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes("not allowed") || errorMsg.includes("assistive access") || errorMsg.includes("1002")) {
+          return {
+            ok: false,
+            permissionDenied: true,
+            error: "Accessibility permission required to press keys.",
+            artifact: { title: "Permission Required", kind: "markdown", content: accessibilityFixSteps() },
+          };
+        }
+        throw error;
+      }
     }
 
     if (name === "computer_click") {
       if (requiresConfirmation(args)) {
         return { ok: false, requiresConfirmation: true, message: "Confirmation required before clicking a risky target." };
       }
-      await execFileAsync("osascript", ["-e", `tell application "System Events" to click at {${Number(args.x)}, ${Number(args.y)}}`]);
-      return { ok: true, message: `Clicked ${args.x}, ${args.y}.` };
+      try {
+        await execFileAsync("osascript", ["-e", `tell application "System Events" to click at {${Number(args.x)}, ${Number(args.y)}}`]);
+        return { ok: true, message: `Clicked ${args.x}, ${args.y}.` };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes("not allowed") || errorMsg.includes("assistive access") || errorMsg.includes("1002")) {
+          return {
+            ok: false,
+            permissionDenied: true,
+            error: "Accessibility permission required to click.",
+            artifact: { title: "Permission Required", kind: "markdown", content: accessibilityFixSteps() },
+          };
+        }
+        throw error;
+      }
     }
 
     if (name === "computer_scroll") {
@@ -914,6 +1027,21 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
     }
 
     if (name === "ui_inspect") {
+      // Check accessibility first
+      const accessCheck = await checkAccessibilityPermission();
+      if (!accessCheck.granted) {
+        return {
+          ok: false,
+          permissionDenied: true,
+          error: "Accessibility permission required for UI inspection.",
+          artifact: {
+            title: "Permission Required",
+            kind: "markdown",
+            content: accessibilityFixSteps(),
+          },
+        };
+      }
+      
       const script = `tell application "System Events"
 set frontApp to first application process whose frontmost is true
 set appName to name of frontApp
@@ -935,6 +1063,38 @@ end tell`;
           title: "UI Inspect",
           kind: "text",
           content: stdout.trim(),
+        },
+      };
+    }
+    
+    if (name === "computer_check_permissions") {
+      const accessCheck = await checkAccessibilityPermission();
+      
+      if (accessCheck.granted) {
+        const modeNote = currentMode === "computer" 
+          ? "Computer control is **enabled** and ready."
+          : "Permissions are granted. Say **'switch to computer use mode'** to start controlling your computer.";
+        
+        return {
+          ok: true,
+          granted: true,
+          mode: currentMode,
+          artifact: {
+            title: "Accessibility: Granted ✓",
+            kind: "markdown",
+            content: `## Accessibility Permission: Granted ✓\n\n${modeNote}\n\n### Available Computer Tools\n\n- Open apps\n- Type text\n- Press keys (Enter, Tab, arrows, etc.)\n- Click at coordinates\n- Scroll\n- Take screenshots\n- Inspect UI elements`,
+          },
+        };
+      }
+      
+      return {
+        ok: false,
+        granted: false,
+        error: accessCheck.error,
+        artifact: {
+          title: "Accessibility: Not Granted",
+          kind: "markdown",
+          content: accessibilityFixSteps(),
         },
       };
     }
@@ -1059,9 +1219,19 @@ Here is what you can ask me to do.
 
 ## Computer Use Mode
 
-- "Switch to computer use mode."
+- "Switch to computer use mode." — enables desktop control
+- "Check computer permissions." — verify macOS Accessibility is enabled
 - Open apps, click, type, press Enter/Return, scroll, inspect the UI, and take screen snapshots.
 - Luna asks before risky actions like sending, deleting, buying, changing settings, or sharing private info.
+- **Note:** Computer control requires macOS Accessibility permission. Go to System Settings → Privacy & Security → Accessibility and add SmartStart.
+
+## Lending & Borrower Guidance
+
+- "Search knowledge base for HMDA" or any lending topic
+- "Help me with a 1003 loan application" — guided checklist
+- "What are the state regulations for Texas mortgages?"
+- "Explain the 1008 underwriting transmittal"
+- Luna's lending knowledge is educational only, not legal advice.
 
 ## Good Starter Prompts
 
