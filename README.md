@@ -1,12 +1,12 @@
 # Luna Voice
 
-Luna Voice is a desktop AI voice companion featuring the Singularity Horizon visualization and powered by ElevenLabs Conversational AI.
+Luna Voice is a desktop AI voice companion powered by ElevenLabs Conversational AI with a beautiful photoreal avatar and glassmorphic UI.
 
 ## Features
 
 - **ElevenLabs Conversational AI** - Natural voice conversations with the Luna SmartStart agent
-- **Singularity Horizon** - Stunning WebGL2 visualization that responds to conversation state
-- **Light minimalist UI** - Clean, modern interface with glassmorphic design
+- **Photoreal Luna Avatar** - Beautiful Filipina avatar with mood-reactive overlays
+- **Light glassmorphic UI** - Chat.ly-style three-column layout
 - **Artifact panel** - Display markdown, charts, images, notes, and more
 - **Computer use mode** - Optional macOS automation capabilities
 - **macOS app** - Installable app you can keep in your Dock
@@ -24,10 +24,30 @@ Luna Voice is a desktop AI voice companion featuring the Singularity Horizon vis
 git clone https://github.com/kokodagwapo/lunavoice.git
 cd lunavoice
 npm install
-cp .env.example .env.local
-# Edit .env.local with your API keys
+```
+
+Create `.env.local` with your API keys:
+
+```bash
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+ELEVENLABS_AGENT_ID=agent_9201m2rz87evfjsaek9c3a275b62
+VOICE_PROVIDER=elevenlabs
+```
+
+Start the app:
+
+```bash
 npm run dev
 ```
+
+## Testing a Voice Call
+
+1. **Start the app**: `npm run dev`
+2. **Click the phone button** in the floating input bar (center-bottom)
+3. **Allow microphone access** when prompted
+4. **Speak to Luna** - She will respond with the ElevenLabs agent voice
+5. **Watch the avatar** - Glow ring changes color based on mood (listening/speaking/thinking)
+6. **End call** - Click the red phone button to disconnect
 
 ## Configuration
 
@@ -110,13 +130,14 @@ Luna Voice may request:
 - **History** - Show conversation log
 - **Restart** - Restart the app (confirms if call is active)
 
-## Singularity Horizon
+## Luna Avatar
 
-The main avatar is a WebGL2 visualization with:
-- Interactive drag-to-orbit camera
-- Mood-reactive states (idle → listening → speaking)
-- HUD overlay with real-time metrics
-- Respects `prefers-reduced-motion`
+The main avatar features a photoreal Filipina portrait with:
+- Mood-reactive glow ring (blue/purple/green/amber/red)
+- Speaking wave animation
+- Listening pulse indicator
+- Thinking spinner
+- Status label showing current state
 
 ## License
 
