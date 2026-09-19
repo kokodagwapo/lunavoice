@@ -1,6 +1,7 @@
 {
   "name": "luna-voice",
   "version": "3.0.0",
+  "type": "module",
   "description": "Luna Voice - AI voice companion powered by ElevenLabs Conversational AI",
   "productName": "Luna Voice",
   "main": "electron/main.cjs",
@@ -12,7 +13,14 @@
     "pack:mac": "npm run build && electron-builder --mac --dir",
     "dist:mac": "npm run build && electron-builder --mac"
   },
-  "keywords": ["electron", "elevenlabs", "voice", "ai", "desktop-assistant", "luna"],
+  "keywords": [
+    "electron",
+    "elevenlabs",
+    "voice",
+    "ai",
+    "desktop-assistant",
+    "luna"
+  ],
   "author": "",
   "license": "MIT",
   "build": {
@@ -42,25 +50,37 @@
       "title": "Luna Voice",
       "icon": "build/icon.icns",
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "lucide-react": "^1.22.0",
+    "lucide-react": "^1.47.0",
     "mermaid": "^11.16.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "autoprefixer": "^10.6.1",
     "concurrently": "^10.0.3",
     "electron": "^42.5.1",
     "electron-builder": "^26.0.12",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.1.0",
     "wait-on": "^9.0.10"

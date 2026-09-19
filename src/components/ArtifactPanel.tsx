@@ -8,6 +8,7 @@ type ArtifactPanelProps = {
   fullscreen: boolean;
   onToggleVisible: () => void;
   onToggleFullscreen: () => void;
+  embedded?: boolean;
 };
 
 type MermaidState = {
@@ -49,11 +50,11 @@ type ThumbnailBoardData = {
 
 mermaid.initialize({
   startOnLoad: false,
-  theme: "dark",
+  theme: "neutral",
   securityLevel: "strict",
 });
 
-export function ArtifactPanel({ artifact, visible, fullscreen, onToggleVisible, onToggleFullscreen }: ArtifactPanelProps) {
+export function ArtifactPanel({ artifact, visible, fullscreen, onToggleVisible, onToggleFullscreen, embedded }: ArtifactPanelProps) {
   const [mermaidState, setMermaidState] = useState<MermaidState>({ svg: "", error: null, source: "" });
   const rawId = useId();
   const mermaidId = useMemo(() => `mermaid-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`, [rawId]);
@@ -94,6 +95,14 @@ export function ArtifactPanel({ artifact, visible, fullscreen, onToggleVisible, 
       <button className="artifact-tab" onClick={onToggleVisible}>
         Show Artifacts
       </button>
+    );
+  }
+
+  if (embedded) {
+    return (
+      <div className="artifact-embedded">
+        {artifact ? renderArtifact(artifact, mermaidState) : null}
+      </div>
     );
   }
 
