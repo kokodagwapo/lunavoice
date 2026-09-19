@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Sparkles, Building2, DollarSign, Activity, X } from "lucide-react";
 import { HoloDataCards, type HoloCard } from "./HoloDataCards";
-import { NeuralCore } from "./NeuralCore";
+import SingularityHorizon, { DEFAULT_SINGULARITY_STATES } from "./ui/singularity-horizon";
 
 // Sample data payloads for demo
 const DEMO_SCENARIOS: Record<string, { question: string; cards: Omit<HoloCard, "id">[] }> = {
@@ -187,11 +187,17 @@ export function HoloDemo({ onClose, embedded = false }: HoloDemoProps) {
           }}
         />
 
-        {/* Neural Core */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <NeuralCore 
-            mood={isAnimating ? "thinking" : activeCards.length > 0 ? "speaking" : "idle"} 
-            size="large" 
+        {/* Singularity Horizon */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-72 h-72">
+          <SingularityHorizon 
+            width="100%"
+            height="100%"
+            particles={3000}
+            hud={false}
+            interactive={true}
+            autoRotate={true}
+            state={DEFAULT_SINGULARITY_STATES[isAnimating ? 2 : activeCards.length > 0 ? 1 : 0]}
+            style={{ borderRadius: "50%", background: "transparent" }}
           />
         </div>
 

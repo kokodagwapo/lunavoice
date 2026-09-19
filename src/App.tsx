@@ -3,12 +3,12 @@ import {
   Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, 
   Plus, Settings, Bell, User, Trash2,
   PanelRight, PanelLeft, RotateCcw, X, Search,
-  MessageSquare, ChevronLeft, ChevronRight, Brain, Plug,
+  MessageSquare, Brain, Plug,
   Paperclip, Sparkles, Shield, Calculator, Megaphone,
-  Activity, Handshake, UserPlus, Check
+  Activity, Handshake, UserPlus, Check, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { ArtifactPanel } from "./components/ArtifactPanel";
-import { NeuralCore } from "./components/NeuralCore";
+import SingularityHorizon, { DEFAULT_SINGULARITY_STATES } from "./components/ui/singularity-horizon";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { HoloDemo } from "./components/HoloDemo";
 import { HoloDataCards, parseResponseToCards, type HoloCard } from "./components/HoloDataCards";
@@ -18,19 +18,19 @@ import type { LunaArtifact, Agent, ConversationSummary } from "./vite-env";
 type LeftTab = "chats" | "agents" | "memory" | "connectors";
 
 const AGENT_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-  sparkles: Sparkles,
-  calculator: Calculator,
-  shield: Shield,
-  megaphone: Megaphone,
-  activity: Activity,
-  handshake: Handshake,
-  user: User,
+  sparkles: Sparkles, calculator: Calculator, shield: Shield,
+  megaphone: Megaphone, activity: Activity, handshake: Handshake, user: User,
 };
 
 function AgentIcon({ icon, className }: { icon: string; className?: string }) {
   const Icon = AGENT_ICONS[icon] || Sparkles;
-  return <Icon size={16} className={className} />;
+  return <Icon size={14} className={className} />;
 }
+
+// Map mood to singularity state
+const MOOD_TO_STATE: Record<LunaMood, number> = {
+  idle: 0, listening: 1, thinking: 2, speaking: 1, working: 2, error: 3,
+};
 
 export default function App() {
   const [connectionState, setConnectionState] = useState<LunaConnectionState>("idle");
@@ -46,99 +46,57 @@ export default function App() {
   const [showHoloDemo, setShowHoloDemo] = useState(false);
   const [holoCards, setHoloCards] = useState<HoloCard[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  
-  // Sidebar state
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(true);
   
-  // Agent state
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeAgent, setActiveAgent] = useState<Agent | null>(null);
   const [showNewAgent, setShowNewAgent] = useState(false);
   const [newAgentName, setNewAgentName] = useState("");
   const [newAgentRole, setNewAgentRole] = useState("");
-  
-  // Conversation state
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   
   const clientRef = useRef<LunaRealtimeClient | null>(null);
-
   const isConnected = connectionState === "connected";
   const isConnecting = connectionState === "connecting";
 
-  // Load agents and conversations on mount
-  useEffect(() => {
-    loadAgents();
-  }, []);
-
-  useEffect(() => {
-    if (activeAgent) {
-      loadConversations();
-    }
-  }, [activeAgent?.id]);
+  useEffect(() => { loadAgents(); }, []);
+  useEffect(() => { if (activeAgent) loadConversations(); }, [activeAgent?.id]);
 
   async function loadAgents() {
     try {
       const data = await window.luna.listAgents();
       setAgents(data.agents);
-      const active = data.agents.find(a => a.id === data.activeAgentId) || data.agents[0];
-      setActiveAgent(active);
-    } catch (error) {
-      console.error("Failed to load agents:", error);
-    }
+      setActiveAgent(data.agents.find(a => a.id === data.activeAgentId) || data.agents[0]);
+    } catch (e) { console.error(e); }
   }
 
   async function loadConversations() {
-    try {
-      const convs = await window.luna.listConversations(activeAgent?.id);
-      setConversations(convs);
-    } catch (error) {
-      console.error("Failed to load conversations:", error);
-    }
+    try { setConversations(await window.luna.listConversations(activeAgent?.id)); } catch (e) { console.error(e); }
   }
 
   async function switchAgent(agentId: string) {
     try {
       const result = await window.luna.setActiveAgent(agentId);
-      if (result.ok && result.agent) {
-        setActiveAgent(result.agent);
-        setTranscript([]);
-        setActiveConversationId(null);
-      }
-    } catch (error) {
-      console.error("Failed to switch agent:", error);
-    }
+      if (result.ok && result.agent) { setActiveAgent(result.agent); setTranscript([]); setActiveConversationId(null); }
+    } catch (e) { console.error(e); }
   }
 
   async function createNewAgent() {
     if (!newAgentName.trim() || !newAgentRole.trim()) return;
     try {
-      const result = await window.luna.createAgent({
-        name: newAgentName.trim(),
-        role: newAgentRole.trim(),
-      });
-      if (result.ok) {
-        await loadAgents();
-        setShowNewAgent(false);
-        setNewAgentName("");
-        setNewAgentRole("");
-      }
-    } catch (error) {
-      console.error("Failed to create agent:", error);
-    }
+      const result = await window.luna.createAgent({ name: newAgentName.trim(), role: newAgentRole.trim() });
+      if (result.ok) { await loadAgents(); setShowNewAgent(false); setNewAgentName(""); setNewAgentRole(""); }
+    } catch (e) { console.error(e); }
   }
 
   async function startNewChat() {
     if (!activeAgent) return;
     try {
       const conv = await window.luna.createConversation(activeAgent.id, activeAgent.name);
-      setActiveConversationId(conv.id);
-      setTranscript([]);
-      await loadConversations();
-    } catch (error) {
-      console.error("Failed to create conversation:", error);
-    }
+      setActiveConversationId(conv.id); setTranscript([]); await loadConversations();
+    } catch (e) { console.error(e); }
   }
 
   async function switchConversation(convId: string) {
@@ -147,15 +105,11 @@ export default function App() {
       if (conv) {
         setActiveConversationId(conv.id);
         setTranscript(conv.messages.map(m => ({
-          id: m.id,
-          role: m.role as TranscriptEntry["role"],
-          text: m.text,
+          id: m.id, role: m.role as TranscriptEntry["role"], text: m.text,
           at: new Date(m.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
         })).reverse());
       }
-    } catch (error) {
-      console.error("Failed to load conversation:", error);
-    }
+    } catch (e) { console.error(e); }
   }
 
   async function deleteConv(convId: string, e: React.MouseEvent) {
@@ -163,85 +117,52 @@ export default function App() {
     if (!window.confirm("Delete this conversation?")) return;
     try {
       await window.luna.deleteConversation(convId);
-      if (activeConversationId === convId) {
-        setActiveConversationId(null);
-        setTranscript([]);
-      }
+      if (activeConversationId === convId) { setActiveConversationId(null); setTranscript([]); }
       await loadConversations();
-    } catch (error) {
-      console.error("Failed to delete conversation:", error);
-    }
+    } catch (e) { console.error(e); }
   }
 
-  const addHoloCards = useCallback((cards: HoloCard[]) => {
-    if (cards.length > 0) {
-      setHoloCards(prev => [...prev, ...cards]);
-    }
-  }, []);
+  const addHoloCards = useCallback((cards: HoloCard[]) => { if (cards.length > 0) setHoloCards(prev => [...prev, ...cards]); }, []);
 
   async function connect() {
     const client = new LunaRealtimeClient({
-      onConnectionState: setConnectionState,
-      onMood: setMood,
-      onMouthShape: setMouthShape,
+      onConnectionState: setConnectionState, onMood: setMood, onMouthShape: setMouthShape,
       onTranscript: async (entry) => {
         setTranscript((items) => [entry, ...items].slice(0, 80));
-        if (activeConversationId && (entry.role === "user" || entry.role === "luna")) {
+        if (activeConversationId && (entry.role === "user" || entry.role === "luna"))
           await window.luna.addMessage(activeConversationId, entry.role, entry.text);
-        }
       },
-      onArtifact: (nextArtifact) => {
-        setArtifact(nextArtifact);
-        setRightCollapsed(false);
-        if (nextArtifact?.content) {
-          const cards = parseResponseToCards(nextArtifact.content, nextArtifact.kind);
-          addHoloCards(cards);
-        }
-      },
+      onArtifact: (a) => { setArtifact(a); setRightCollapsed(false); if (a?.content) addHoloCards(parseResponseToCards(a.content, a.kind)); },
       onMode: () => {},
-      onStatus: (message) => setTranscript((items) => [newEntry("system", message), ...items].slice(0, 80)),
+      onStatus: (msg) => setTranscript((items) => [newEntry("system", msg), ...items].slice(0, 80)),
       onThumbnailReady: () => {},
     });
     clientRef.current = client;
-    
     if (!activeConversationId && activeAgent) {
       const conv = await window.luna.createConversation(activeAgent.id, activeAgent.name);
-      setActiveConversationId(conv.id);
-      await loadConversations();
+      setActiveConversationId(conv.id); await loadConversations();
     }
-    
     await client.connect();
   }
 
-  function disconnect() {
-    clientRef.current?.disconnect();
-    clientRef.current = null;
-  }
+  function disconnect() { clientRef.current?.disconnect(); clientRef.current = null; }
 
   async function handleRestart() {
     if (isConnected && !window.confirm("A call is active. Restart anyway?")) return;
-    disconnect();
-    await window.luna.restart();
+    disconnect(); await window.luna.restart();
   }
 
   async function sendTextPrompt() {
     const trimmed = textPrompt.trim();
     if (!trimmed) return;
-    
     if (!activeConversationId && activeAgent) {
       const conv = await window.luna.createConversation(activeAgent.id, activeAgent.name);
-      setActiveConversationId(conv.id);
-      await loadConversations();
+      setActiveConversationId(conv.id); await loadConversations();
     }
-    
-    if (clientRef.current) {
-      clientRef.current.sendText(trimmed);
-    } else {
-      const entry = newEntry("user", trimmed);
-      setTranscript((items) => [entry, ...items].slice(0, 80));
-      if (activeConversationId) {
-        await window.luna.addMessage(activeConversationId, "user", trimmed);
-      }
+    if (clientRef.current) clientRef.current.sendText(trimmed);
+    else {
+      setTranscript((items) => [newEntry("user", trimmed), ...items].slice(0, 80));
+      if (activeConversationId) await window.luna.addMessage(activeConversationId, "user", trimmed);
     }
     setTextPrompt("");
   }
@@ -250,297 +171,148 @@ export default function App() {
     try {
       setIsUploading(true);
       const filePaths = await window.luna.selectFiles();
-      if (filePaths.length === 0) {
-        setIsUploading(false);
-        return;
-      }
-      
+      if (filePaths.length === 0) { setIsUploading(false); return; }
       for (const filePath of filePaths) {
         const file = await window.luna.uploadFile(filePath);
-        const result = await window.luna.executeTool({
-          name: "file_parse",
-          arguments: { filePath: file.path, fileName: file.name },
-        });
-        
-        if (result.artifact) {
-          setArtifact(result.artifact);
-          setRightCollapsed(false);
-        }
-        
-        setTranscript((items) => [
-          newEntry("system", `Uploaded: ${file.name}`),
-          ...items,
-        ].slice(0, 80));
+        const result = await window.luna.executeTool({ name: "file_parse", arguments: { filePath: file.path, fileName: file.name } });
+        if (result.artifact) { setArtifact(result.artifact); setRightCollapsed(false); }
+        setTranscript((items) => [newEntry("system", `Uploaded: ${file.name}`), ...items].slice(0, 80));
       }
     } catch (error) {
-      setTranscript((items) => [
-        newEntry("system", `Upload failed: ${error instanceof Error ? error.message : String(error)}`),
-        ...items,
-      ].slice(0, 80));
-    } finally {
-      setIsUploading(false);
-    }
+      setTranscript((items) => [newEntry("system", `Upload failed: ${error instanceof Error ? error.message : String(error)}`), ...items].slice(0, 80));
+    } finally { setIsUploading(false); }
   }
 
   async function handleQuickAction(action: string) {
     const result = await window.luna.executeTool({ name: action, arguments: {} });
-    if (result.artifact) {
-      setArtifact(result.artifact);
-      setRightCollapsed(false);
-    }
+    if (result.artifact) { setArtifact(result.artifact); setRightCollapsed(false); }
   }
 
+  const singularityState = DEFAULT_SINGULARITY_STATES[MOOD_TO_STATE[mood] || 0];
+
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-950 text-white font-['Inter',system-ui,sans-serif]">
-      {/* Top Bar */}
-      <header className="h-12 flex items-center justify-between px-4 border-b border-white/5 bg-slate-900/50 backdrop-blur-xl window-drag">
-        <div className="flex items-center gap-3 window-no-drag">
-          <button
-            onClick={() => setLeftCollapsed(c => !c)}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
-          >
-            {leftCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+    <div className="h-screen w-screen flex flex-col bg-[#0a0a0f] text-white/90 font-[system-ui,-apple-system,sans-serif] antialiased">
+      {/* Header */}
+      <header className="h-11 flex items-center justify-between px-3 bg-[#0d0d14]/80 backdrop-blur-xl border-b border-white/[0.04] window-drag">
+        <div className="flex items-center gap-2.5 window-no-drag">
+          <button onClick={() => setLeftCollapsed(c => !c)} className="w-7 h-7 rounded-md hover:bg-white/[0.06] flex items-center justify-center text-white/40 hover:text-white/70 transition-colors">
+            {leftCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
-          <div 
-            className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: activeAgent?.accent || "#6366f1" }}
-          >
+          <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: activeAgent?.accent || "#6366f1" }}>
             {activeAgent && <AgentIcon icon={activeAgent.icon} className="text-white" />}
           </div>
-          <span className="text-sm font-medium text-white/90">
-            {activeAgent?.name || "SmartStart"}
-          </span>
+          <span className="text-[13px] font-medium text-white/80">{activeAgent?.name || "SmartStart"}</span>
           {activeAgent && activeAgent.role !== "General Assistant" && (
-            <span className="text-xs text-white/40 hidden sm:inline">{activeAgent.role}</span>
+            <span className="text-[11px] text-white/30">{activeAgent.role}</span>
           )}
         </div>
-        
-        <div className="flex items-center gap-2 window-no-drag">
-          <button 
-            onClick={() => setShowHoloDemo(true)}
-            className="h-8 px-3 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 flex items-center gap-2 text-white text-xs font-medium transition-all"
-          >
-            <Sparkles size={14} />
-            Holo Demo
+        <div className="flex items-center gap-1.5 window-no-drag">
+          <button onClick={() => setShowHoloDemo(true)} className="h-7 px-2.5 rounded-md bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/20 flex items-center gap-1.5 text-indigo-300 text-[11px] font-medium transition-colors">
+            <Sparkles size={12} /> Holo Demo
           </button>
-          <button className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all">
-            <Bell size={16} />
-          </button>
-          <button 
-            onClick={() => setShowSettings(true)}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
-          >
-            <Settings size={16} />
-          </button>
+          <button className="w-7 h-7 rounded-md hover:bg-white/[0.06] flex items-center justify-center text-white/40 hover:text-white/70 transition-colors"><Bell size={14} /></button>
+          <button onClick={() => setShowSettings(true)} className="w-7 h-7 rounded-md hover:bg-white/[0.06] flex items-center justify-center text-white/40 hover:text-white/70 transition-colors"><Settings size={14} /></button>
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="flex-1 flex min-h-0">
         {/* Left Sidebar */}
-        <aside className={`${leftCollapsed ? "w-0" : "w-64"} flex-shrink-0 border-r border-white/5 bg-slate-900/30 backdrop-blur-sm flex flex-col overflow-hidden transition-all duration-300`}>
+        <aside className={`${leftCollapsed ? "w-0 opacity-0" : "w-56 opacity-100"} flex-shrink-0 border-r border-white/[0.04] bg-[#0d0d14]/50 flex flex-col overflow-hidden transition-all duration-200`}>
           {!leftCollapsed && (
             <>
-              {/* Tabs */}
-              <div className="p-2 border-b border-white/5">
-                <div className="flex gap-1">
+              <div className="p-2 border-b border-white/[0.04]">
+                <div className="flex rounded-md bg-white/[0.03] p-0.5">
                   {(["chats", "agents", "memory", "connectors"] as LeftTab[]).map(tab => (
-                    <button 
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
-                        activeTab === tab 
-                          ? "bg-white/10 text-white" 
-                          : "text-white/50 hover:text-white/80 hover:bg-white/5"
-                      }`}
-                    >
-                      {tab === "chats" && <MessageSquare size={12} className="mx-auto" />}
-                      {tab === "agents" && <User size={12} className="mx-auto" />}
-                      {tab === "memory" && <Brain size={12} className="mx-auto" />}
-                      {tab === "connectors" && <Plug size={12} className="mx-auto" />}
+                    <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-1 rounded text-[10px] font-medium transition-colors ${activeTab === tab ? "bg-white/[0.08] text-white/80" : "text-white/40 hover:text-white/60"}`}>
+                      {tab === "chats" && <MessageSquare size={10} className="mx-auto" />}
+                      {tab === "agents" && <User size={10} className="mx-auto" />}
+                      {tab === "memory" && <Brain size={10} className="mx-auto" />}
+                      {tab === "connectors" && <Plug size={10} className="mx-auto" />}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Tab Content */}
-              <div className="flex-1 overflow-auto p-2">
+              <div className="flex-1 overflow-auto p-2 space-y-1">
                 {activeTab === "chats" && (
-                  <div className="space-y-2">
-                    <button
-                      onClick={startNewChat}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-sm font-medium transition-all border border-indigo-500/20"
-                    >
-                      <Plus size={14} />
-                      New Chat
+                  <>
+                    <button onClick={startNewChat} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/10 text-indigo-300 text-[11px] font-medium transition-colors">
+                      <Plus size={12} /> New Chat
                     </button>
-
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-white/40">
-                      <Search size={12} />
-                      <span className="text-xs">Search chats...</span>
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-white/30">
+                      <Search size={10} /><span className="text-[10px]">Search...</span>
                     </div>
-
-                    <div className="space-y-1 mt-2">
-                      {conversations.length === 0 ? (
-                        <p className="text-xs text-white/30 text-center py-4">No conversations yet</p>
-                      ) : (
-                        conversations.map((conv) => (
-                          <button
-                            key={conv.id}
-                            onClick={() => switchConversation(conv.id)}
-                            className={`w-full group flex items-start gap-2 px-2 py-2 rounded-lg text-left transition-all ${
-                              activeConversationId === conv.id 
-                                ? "bg-white/10" 
-                                : "hover:bg-white/5"
-                            }`}
-                          >
-                            <MessageSquare size={12} className="text-white/40 mt-0.5 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-white/80 truncate">{conv.title}</p>
-                              <p className="text-[10px] text-white/30">
-                                {new Date(conv.updatedAt).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <button
-                              onClick={(e) => deleteConv(conv.id, e)}
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded text-white/30 hover:text-red-400 transition-all"
-                            >
-                              <Trash2 size={10} />
-                            </button>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
+                    {conversations.length === 0 ? (
+                      <p className="text-[10px] text-white/20 text-center py-4">No conversations</p>
+                    ) : conversations.map(conv => (
+                      <button key={conv.id} onClick={() => switchConversation(conv.id)} className={`w-full group flex items-start gap-1.5 px-2 py-1.5 rounded-md text-left transition-colors ${activeConversationId === conv.id ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"}`}>
+                        <MessageSquare size={10} className="text-white/30 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-white/70 truncate">{conv.title}</p>
+                          <p className="text-[9px] text-white/25">{new Date(conv.updatedAt).toLocaleDateString()}</p>
+                        </div>
+                        <button onClick={(e) => deleteConv(conv.id, e)} className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-500/20 rounded text-white/20 hover:text-red-400 transition-all"><Trash2 size={10} /></button>
+                      </button>
+                    ))}
+                  </>
                 )}
-
                 {activeTab === "agents" && (
-                  <div className="space-y-2">
+                  <>
                     {showNewAgent ? (
-                      <div className="p-2 rounded-lg bg-white/5 space-y-2">
-                        <input
-                          type="text"
-                          value={newAgentName}
-                          onChange={(e) => setNewAgentName(e.target.value)}
-                          placeholder="Agent name..."
-                          className="w-full px-2 py-1.5 rounded-md bg-white/10 border border-white/10 text-xs text-white placeholder-white/30 outline-none focus:border-indigo-500/50"
-                        />
-                        <input
-                          type="text"
-                          value={newAgentRole}
-                          onChange={(e) => setNewAgentRole(e.target.value)}
-                          placeholder="Role..."
-                          className="w-full px-2 py-1.5 rounded-md bg-white/10 border border-white/10 text-xs text-white placeholder-white/30 outline-none focus:border-indigo-500/50"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={createNewAgent}
-                            disabled={!newAgentName.trim() || !newAgentRole.trim()}
-                            className="flex-1 py-1.5 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium disabled:opacity-50"
-                          >
-                            Create
-                          </button>
-                          <button
-                            onClick={() => setShowNewAgent(false)}
-                            className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/70 text-xs"
-                          >
-                            Cancel
-                          </button>
+                      <div className="p-2 rounded-md bg-white/[0.03] space-y-1.5">
+                        <input value={newAgentName} onChange={(e) => setNewAgentName(e.target.value)} placeholder="Name..." className="w-full px-2 py-1 rounded bg-white/[0.05] border border-white/[0.06] text-[11px] text-white placeholder-white/30 outline-none focus:border-indigo-500/30" />
+                        <input value={newAgentRole} onChange={(e) => setNewAgentRole(e.target.value)} placeholder="Role..." className="w-full px-2 py-1 rounded bg-white/[0.05] border border-white/[0.06] text-[11px] text-white placeholder-white/30 outline-none focus:border-indigo-500/30" />
+                        <div className="flex gap-1">
+                          <button onClick={createNewAgent} disabled={!newAgentName.trim() || !newAgentRole.trim()} className="flex-1 py-1 rounded bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] font-medium disabled:opacity-40">Create</button>
+                          <button onClick={() => setShowNewAgent(false)} className="px-2 py-1 rounded bg-white/[0.05] hover:bg-white/[0.08] text-white/60 text-[10px]">Cancel</button>
                         </div>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => setShowNewAgent(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-white/20 hover:border-white/40 text-white/50 hover:text-white/70 text-xs transition-all"
-                      >
-                        <UserPlus size={14} />
-                        Create Agent
+                      <button onClick={() => setShowNewAgent(true)} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-dashed border-white/10 hover:border-white/20 text-white/40 hover:text-white/60 text-[11px] transition-colors">
+                        <UserPlus size={12} /> Create Agent
                       </button>
                     )}
-
-                    <div className="space-y-1 mt-2">
-                      {agents.map((agent) => (
-                        <button
-                          key={agent.id}
-                          onClick={() => switchAgent(agent.id)}
-                          className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-all ${
-                            activeAgent?.id === agent.id ? "bg-white/10" : "hover:bg-white/5"
-                          }`}
-                        >
-                          <div 
-                            className="w-6 h-6 rounded-md flex items-center justify-center"
-                            style={{ background: agent.accent }}
-                          >
-                            <AgentIcon icon={agent.icon} className="text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-white/90">{agent.name}</p>
-                            <p className="text-[10px] text-white/40 truncate">{agent.role}</p>
-                          </div>
-                          {activeAgent?.id === agent.id && (
-                            <Check size={12} className="text-green-400" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                    {agents.map(agent => (
+                      <button key={agent.id} onClick={() => switchAgent(agent.id)} className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${activeAgent?.id === agent.id ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"}`}>
+                        <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: agent.accent }}><AgentIcon icon={agent.icon} className="text-white" /></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-medium text-white/80">{agent.name}</p>
+                          <p className="text-[9px] text-white/30 truncate">{agent.role}</p>
+                        </div>
+                        {activeAgent?.id === agent.id && <Check size={10} className="text-green-400" />}
+                      </button>
+                    ))}
+                  </>
                 )}
-
                 {activeTab === "memory" && (
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => handleQuickAction("memory_list")}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
-                    >
-                      <Brain size={14} className="text-purple-400" />
-                      <span className="text-xs text-white/70">View Memories</span>
+                  <>
+                    <button onClick={() => handleQuickAction("memory_list")} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-white/[0.03] text-left transition-colors">
+                      <Brain size={12} className="text-purple-400" /><span className="text-[11px] text-white/60">View Memories</span>
                     </button>
-                    <button
-                      onClick={() => handleQuickAction("kb_topics")}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
-                    >
-                      <Search size={14} className="text-blue-400" />
-                      <span className="text-xs text-white/70">Knowledge Base</span>
+                    <button onClick={() => handleQuickAction("kb_topics")} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-white/[0.03] text-left transition-colors">
+                      <Search size={12} className="text-blue-400" /><span className="text-[11px] text-white/60">Knowledge Base</span>
                     </button>
-                  </div>
+                  </>
                 )}
-
                 {activeTab === "connectors" && (
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => handleQuickAction("connectors_list")}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
-                    >
-                      <Plug size={14} className="text-green-400" />
-                      <span className="text-xs text-white/70">View Connectors</span>
+                  <>
+                    <button onClick={() => handleQuickAction("connectors_list")} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-white/[0.03] text-left transition-colors">
+                      <Plug size={12} className="text-green-400" /><span className="text-[11px] text-white/60">View Connectors</span>
                     </button>
-                    <button
-                      onClick={() => setShowSettings(true)}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-left transition-all"
-                    >
-                      <Settings size={14} className="text-white/40" />
-                      <span className="text-xs text-white/70">Settings</span>
+                    <button onClick={() => setShowSettings(true)} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-white/[0.03] text-left transition-colors">
+                      <Settings size={12} className="text-white/30" /><span className="text-[11px] text-white/60">Settings</span>
                     </button>
-                  </div>
+                  </>
                 )}
               </div>
 
-              {/* Active Agent */}
               {activeAgent && (
-                <div className="p-2 border-t border-white/5">
-                  <div 
-                    className="flex items-center gap-2 p-2 rounded-lg"
-                    style={{ background: `${activeAgent.accent}15` }}
-                  >
-                    <div 
-                      className="w-7 h-7 rounded-md flex items-center justify-center"
-                      style={{ background: activeAgent.accent }}
-                    >
-                      <AgentIcon icon={activeAgent.icon} className="text-white" />
-                    </div>
+                <div className="p-2 border-t border-white/[0.04]">
+                  <div className="flex items-center gap-2 p-1.5 rounded-md" style={{ background: `${activeAgent.accent}10` }}>
+                    <div className="w-6 h-6 rounded flex items-center justify-center" style={{ background: activeAgent.accent }}><AgentIcon icon={activeAgent.icon} className="text-white" /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-white/90">{activeAgent.name}</div>
-                      <div className="text-[10px] text-white/40">{activeAgent.role}</div>
+                      <div className="text-[11px] font-medium text-white/80">{activeAgent.name}</div>
+                      <div className="text-[9px] text-white/30">{activeAgent.role}</div>
                     </div>
                   </div>
                 </div>
@@ -550,189 +322,103 @@ export default function App() {
         </aside>
 
         {/* Center Stage */}
-        <main className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-          {/* Background grid */}
-          <div 
-            className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-              backgroundSize: "60px 60px",
-            }}
-          />
-
-          {/* Holo Cards Overlay */}
+        <main className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
+          {/* Subtle grid */}
+          <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)`, backgroundSize: "32px 32px" }} />
+          
+          {/* Holo Cards */}
           <HoloDataCards cards={holoCards} onCardsDismissed={() => setHoloCards([])} />
 
-          {/* Neural Core */}
-          <NeuralCore mood={mood} size="large" />
-
-          {/* Hero Text */}
-          <div className="mt-8 mb-12 text-center">
-            <h1 className="text-3xl font-light text-white/20 tracking-tight">
-              What's on your mind?
-            </h1>
+          {/* Neural Network (Singularity Horizon) */}
+          <div className="relative w-72 h-72 mb-6">
+            <SingularityHorizon
+              width="100%"
+              height="100%"
+              particles={3000}
+              hud={false}
+              interactive={true}
+              autoRotate={true}
+              state={singularityState}
+              style={{ borderRadius: "50%", background: "transparent" }}
+            />
           </div>
 
-          {/* Floating Input Bar */}
-          <div className="w-full max-w-lg px-4">
-            <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-1 border border-white/10 shadow-2xl shadow-black/20">
-              <div className="flex items-center gap-1">
-                <button 
-                  onClick={handleFileUpload}
-                  disabled={isUploading}
-                  className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all disabled:opacity-50"
-                >
-                  {isUploading ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <Paperclip size={16} />
-                  )}
+          {/* Status */}
+          <div className="mb-8 text-center">
+            <div className="text-[11px] font-medium text-white/30 uppercase tracking-widest mb-1">
+              {isConnected ? (mood === "listening" ? "Listening" : mood === "speaking" ? "Speaking" : mood === "thinking" ? "Processing" : "Ready") : "Offline"}
+            </div>
+            <h1 className="text-xl font-light text-white/15 tracking-tight">What's on your mind?</h1>
+          </div>
+
+          {/* Input */}
+          <div className="w-full max-w-md px-6">
+            <div className="bg-white/[0.03] backdrop-blur-sm rounded-xl border border-white/[0.06] p-1 shadow-2xl shadow-black/30">
+              <div className="flex items-center">
+                <button onClick={handleFileUpload} disabled={isUploading} className="w-9 h-9 rounded-lg hover:bg-white/[0.05] flex items-center justify-center text-white/30 hover:text-white/50 transition-colors disabled:opacity-40">
+                  {isUploading ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : <Paperclip size={15} />}
                 </button>
-                
                 <input
-                  type="text"
                   value={textPrompt}
                   onChange={(e) => setTextPrompt(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendTextPrompt()}
-                  placeholder={`Ask ${activeAgent?.name || "SmartStart"} anything...`}
-                  className="flex-1 bg-transparent outline-none text-white/90 placeholder-white/30 text-sm px-2 py-3"
+                  placeholder={`Ask ${activeAgent?.name || "SmartStart"}...`}
+                  className="flex-1 bg-transparent outline-none text-white/80 placeholder-white/20 text-[13px] py-2.5"
                 />
-
-                <button
-                  onClick={() => setIsMuted(m => !m)}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                    isMuted ? "bg-red-500/20 text-red-400" : "bg-white/5 hover:bg-white/10 text-white/50 hover:text-white"
-                  }`}
-                >
-                  {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+                <button onClick={() => setIsMuted(m => !m)} className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${isMuted ? "bg-red-500/15 text-red-400" : "hover:bg-white/[0.05] text-white/30 hover:text-white/50"}`}>
+                  {isMuted ? <MicOff size={15} /> : <Mic size={15} />}
                 </button>
-
                 {!isConnected ? (
-                  <button
-                    onClick={connect}
-                    disabled={isConnecting}
-                    className="w-10 h-10 rounded-xl bg-indigo-500 hover:bg-indigo-600 flex items-center justify-center text-white transition-all disabled:opacity-50"
-                  >
-                    {isConnecting ? (
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <Phone size={16} />
-                    )}
+                  <button onClick={connect} disabled={isConnecting} className="w-9 h-9 rounded-lg bg-indigo-500 hover:bg-indigo-600 flex items-center justify-center text-white transition-colors disabled:opacity-50">
+                    {isConnecting ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : <Phone size={15} />}
                   </button>
                 ) : (
-                  <button
-                    onClick={disconnect}
-                    className="w-10 h-10 rounded-xl bg-red-500 hover:bg-red-600 flex items-center justify-center text-white transition-all"
-                  >
-                    <PhoneOff size={16} />
+                  <button onClick={disconnect} className="w-9 h-9 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center text-white transition-colors">
+                    <PhoneOff size={15} />
                   </button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Bottom Controls */}
-          <div className="absolute bottom-4 right-4 flex items-center gap-2">
+          {/* Bottom controls */}
+          <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
             {isConnected && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                <button
-                  onClick={() => setVolume(v => v > 0 ? 0 : 80)}
-                  className="text-white/50 hover:text-white"
-                >
-                  {volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
-                </button>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-                />
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/[0.03] border border-white/[0.04]">
+                <button onClick={() => setVolume(v => v > 0 ? 0 : 80)} className="text-white/30 hover:text-white/50"><Volume2 size={12} /></button>
+                <input type="range" min="0" max="100" value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-12 h-0.5 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white/50" />
               </div>
             )}
-            <button
-              onClick={handleRestart}
-              className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all"
-            >
-              <RotateCcw size={14} />
-            </button>
-            <button
-              onClick={() => setRightCollapsed(c => !c)}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${
-                rightCollapsed 
-                  ? "bg-white/5 hover:bg-white/10 border-white/10 text-white/50 hover:text-white" 
-                  : "bg-indigo-500/20 border-indigo-500/30 text-indigo-400"
-              }`}
-            >
-              <PanelRight size={14} />
-            </button>
+            <button onClick={handleRestart} className="w-7 h-7 rounded-lg hover:bg-white/[0.05] border border-white/[0.04] flex items-center justify-center text-white/30 hover:text-white/50 transition-colors"><RotateCcw size={12} /></button>
+            <button onClick={() => setRightCollapsed(c => !c)} className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors border ${rightCollapsed ? "border-white/[0.04] hover:bg-white/[0.05] text-white/30" : "border-indigo-500/30 bg-indigo-500/10 text-indigo-400"}`}><PanelRight size={12} /></button>
           </div>
-
-          {/* Connection Status */}
-          {isConnected && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-white/10 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-xs text-white/60">
-                {mood === "listening" ? "Listening..." : mood === "speaking" ? "Speaking..." : "Connected"}
-              </span>
-            </div>
-          )}
         </main>
 
         {/* Right Panel */}
-        <aside className={`${rightCollapsed ? "w-0" : "w-80"} flex-shrink-0 border-l border-white/5 bg-slate-900/30 backdrop-blur-sm flex flex-col overflow-hidden transition-all duration-300`}>
+        <aside className={`${rightCollapsed ? "w-0 opacity-0" : "w-72 opacity-100"} flex-shrink-0 border-l border-white/[0.04] bg-[#0d0d14]/50 flex flex-col overflow-hidden transition-all duration-200`}>
           {!rightCollapsed && (
             <>
-              <div className="p-3 border-b border-white/5 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-white/80">Results</h2>
-                <button 
-                  onClick={() => setRightCollapsed(true)}
-                  className="w-6 h-6 rounded-md hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
-                >
-                  <X size={14} />
-                </button>
+              <div className="p-2.5 border-b border-white/[0.04] flex items-center justify-between">
+                <span className="text-[11px] font-medium text-white/50">Results</span>
+                <button onClick={() => setRightCollapsed(true)} className="w-5 h-5 rounded hover:bg-white/[0.05] flex items-center justify-center text-white/30"><X size={12} /></button>
               </div>
-
-              <div className="flex-1 overflow-auto p-3">
+              <div className="flex-1 overflow-auto p-2.5">
                 {artifact ? (
-                  <ArtifactPanel
-                    artifact={artifact}
-                    visible={true}
-                    fullscreen={false}
-                    onToggleVisible={() => setRightCollapsed(true)}
-                    onToggleFullscreen={() => {}}
-                    embedded={true}
-                  />
+                  <ArtifactPanel artifact={artifact} visible={true} fullscreen={false} onToggleVisible={() => setRightCollapsed(true)} onToggleFullscreen={() => {}} embedded={true} />
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mb-3">
-                      <MessageSquare size={20} className="text-white/20" />
-                    </div>
-                    <p className="text-xs text-white/30">
-                      Results will appear here
-                    </p>
+                    <div className="w-10 h-10 rounded-lg bg-white/[0.03] flex items-center justify-center mb-2"><MessageSquare size={16} className="text-white/15" /></div>
+                    <p className="text-[10px] text-white/20">Results appear here</p>
                   </div>
                 )}
               </div>
-
               {transcript.length > 0 && (
-                <div className="border-t border-white/5 p-3 max-h-40 overflow-auto">
-                  <div className="text-[10px] font-medium text-white/30 uppercase tracking-wider mb-2">Recent</div>
+                <div className="border-t border-white/[0.04] p-2.5 max-h-32 overflow-auto">
+                  <div className="text-[9px] font-medium text-white/20 uppercase tracking-wider mb-1.5">Recent</div>
                   <div className="space-y-1">
-                    {transcript.slice(0, 3).map((entry) => (
-                      <div 
-                        key={entry.id}
-                        className={`text-xs p-2 rounded-lg ${
-                          entry.role === "luna" ? "bg-indigo-500/10 text-indigo-300" :
-                          entry.role === "user" ? "bg-green-500/10 text-green-300" :
-                          "bg-white/5 text-white/50"
-                        }`}
-                      >
-                        <span className="font-medium">
-                          {entry.role === "luna" ? (activeAgent?.name || "Luna") : entry.role}: 
-                        </span>
-                        {" "}{entry.text.slice(0, 60)}{entry.text.length > 60 ? "..." : ""}
+                    {transcript.slice(0, 3).map(entry => (
+                      <div key={entry.id} className={`text-[10px] px-2 py-1 rounded ${entry.role === "luna" ? "bg-indigo-500/10 text-indigo-300/80" : entry.role === "user" ? "bg-green-500/10 text-green-300/80" : "bg-white/[0.03] text-white/40"}`}>
+                        <span className="font-medium">{entry.role === "luna" ? activeAgent?.name || "Luna" : entry.role}:</span> {entry.text.slice(0, 50)}{entry.text.length > 50 ? "..." : ""}
                       </div>
                     ))}
                   </div>
@@ -743,13 +429,8 @@ export default function App() {
         </aside>
       </div>
 
-      {/* Settings Panel */}
       <SettingsPanel visible={showSettings} onClose={() => setShowSettings(false)} />
-
-      {/* Holographic Demo */}
-      {showHoloDemo && (
-        <HoloDemo onClose={() => setShowHoloDemo(false)} />
-      )}
+      {showHoloDemo && <HoloDemo onClose={() => setShowHoloDemo(false)} />}
     </div>
   );
 }
