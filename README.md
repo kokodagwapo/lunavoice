@@ -181,14 +181,34 @@ Luna can control your Mac (open apps, type, click, scroll, take screenshots) whe
 If computer tools fail with permission errors, Luna will show instructions to fix it.
 
 #### Available Computer Tools
-- `computer_open_app` - Open apps by name
+- `computer_open_app` - Open apps by name (activates after opening)
 - `computer_type_text` - Type text into the active app
 - `computer_press_key` - Press Enter, Tab, arrows, etc.
 - `computer_click` - Click at screen coordinates
 - `computer_scroll` - Scroll the active window
 - `screen_snapshot` - Take a screenshot
-- `ui_inspect` - Inspect the frontmost window
 - `computer_check_permissions` - Verify Accessibility access
+
+#### UI Inspection Tools
+- `ui_inspect` - Inspect macOS app UI with optional parameters:
+  - `appName` - Target a specific app (default: frontmost)
+  - `focus` - Inspection depth: `summary`, `tabs`, `list`, or `deep`
+- `ui_find` - Search for UI elements by text query:
+  - `query` - Text to search for
+  - `appName` - Limit to specific app
+  - `kind` - Element type: `tab`, `chat`, `list`, `button`, `any`
+
+#### File & Folder Tools
+- `files_search` - Search files using macOS Spotlight/mdfind
+- `files_list` - List contents of a directory
+- `files_open` - Open a file with default app
+- `files_read_text` - Read text content from a file
+
+#### App Awareness
+- `apps_list` - List installed applications
+  - `includeRunning` - Also show currently running apps
+
+**Discover Then Act**: Luna will always inspect or search before interacting—never guessing at file paths, UI locations, or app states.
 
 ## Phase 2 Checklist
 
@@ -214,6 +234,10 @@ If computer tools fail with permission errors, Luna will show instructions to fi
 | **Negotiation coach** | ✅ Done |
 | **Decision learning loop** | ✅ Done (log/analyze/suggest) |
 | **Holographic cards on live data** | ✅ Done |
+| **Deep ui_inspect + ui_find** | ✅ Done |
+| **File & folder awareness** | ✅ Done |
+| **Apps list** | ✅ Done |
+| **Computer mode toggle** | ✅ Done |
 | App connectors (Gmail, Encompass, REST) | 🔲 Stub (requires OAuth)
 
 ### LOS API Knowledge

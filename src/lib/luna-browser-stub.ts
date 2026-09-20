@@ -62,6 +62,15 @@ export const lunaBrowserStub: typeof window.luna = {
     return { path: filePath, name: filePath.split("/").pop() || "file" };
   },
 
+  getMode: async (): Promise<"display" | "computer"> => {
+    return "display";
+  },
+
+  setMode: async (mode: "display" | "computer"): Promise<{ ok: boolean; mode: "display" | "computer" }> => {
+    console.log("[Browser Stub] setMode:", mode);
+    return { ok: true, mode: "display" };
+  },
+
   listConnectors: async (): Promise<ConnectorManifest[]> => {
     return [];
   },

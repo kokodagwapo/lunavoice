@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld("luna", {
   restart: () => ipcRenderer.invoke("app:restart"),
   selectFiles: () => ipcRenderer.invoke("file:select"),
   uploadFile: (filePath) => ipcRenderer.invoke("file:upload", filePath),
+  // Mode APIs
+  getMode: () => ipcRenderer.invoke("mode:get"),
+  setMode: (mode) => ipcRenderer.invoke("mode:set", mode),
   // Connector APIs
   listConnectors: () => ipcRenderer.invoke("connectors:list"),
   enableConnector: (id) => ipcRenderer.invoke("connectors:enable", id),

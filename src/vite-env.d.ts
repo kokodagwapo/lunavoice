@@ -119,6 +119,9 @@ declare global {
       restart: () => Promise<void>;
       selectFiles: () => Promise<string[]>;
       uploadFile: (filePath: string) => Promise<UploadedFile>;
+      // Mode APIs
+      getMode: () => Promise<"display" | "computer">;
+      setMode: (mode: "display" | "computer") => Promise<{ ok: boolean; mode: "display" | "computer" }>;
       listConnectors: () => Promise<ConnectorManifest[]>;
       enableConnector: (id: string) => Promise<{ ok: boolean }>;
       disableConnector: (id: string) => Promise<{ ok: boolean }>;

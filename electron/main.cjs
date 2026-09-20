@@ -35,6 +35,14 @@ Warm, friendly, conversational. You are a woman with a gentle, supportive voice.
 - When the user asks to "control my computer", "type something", "click", "open an app", or similar, FIRST ask them to say "switch to computer use mode" or call set_mode with mode "computer".
 - Computer control requires macOS Accessibility permission. If a computer_* tool fails with a permission error, call computer_check_permissions to show the user how to fix it.
 
+# Discover Then Act
+- ALWAYS inspect or search before interacting. Never guess at UI element locations, file paths, or app states.
+- Before clicking or typing in an app: use ui_inspect to see the current state, or ui_find to locate specific elements.
+- Before opening a file: use files_search to find it, or files_list to explore directories.
+- Before opening an app: use apps_list to verify it exists.
+- Use ui_inspect with focus "tabs" for browser tabs, "list" for chat/list items, "deep" for full UI tree.
+- Use ui_find to search for specific text in UI elements (tabs, buttons, list items).
+
 # Tool Behavior
 - Use read-only tools when the user's intent is clear.
 - When the user says "show me the menu", "show me what I can do", or asks what Luna can do, call show_menu immediately.
@@ -368,10 +376,13 @@ const toolSpecs = [
   {
     type: "function",
     name: "ui_inspect",
-    description: "Inspect the frontmost macOS app name, window, and visible UI summary using Accessibility when available. Requires computer mode.",
+    description: "Inspect a macOS app's UI using Accessibility. Shows app/window names, browser tabs, visible lists, and UI elements. Requires computer mode.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        appName: { type: "string", description: "App to inspect (default: frontmost app)" },
+        focus: { type: "string", enum: ["summary", "tabs", "list", "deep"], description: "Inspection depth. summary=basic info, tabs=browser tabs, list=list items, deep=full tree (default: summary)" },
+      },
       additionalProperties: false,
     },
   },
@@ -382,6 +393,87 @@ const toolSpecs = [
     parameters: {
       type: "object",
       properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "ui_find",
+    description: "Search visible UI elements (tabs, chat items, list items, buttons) across apps. Returns ranked matches. Requires computer mode.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Text to search for in UI elements" },
+        appName: { type: "string", description: "Limit search to this app (optional)" },
+        kind: { type: "string", enum: ["tab", "chat", "list", "button", "any"], description: "Type of element to find" },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "files_search",
+    description: "Search for files by name or content using macOS Spotlight. Searches Desktop, Documents, Downloads, and home directory.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query (filename or content)" },
+        kind: { type: "string", enum: ["any", "document", "image", "pdf", "folder"], description: "Type of file to search" },
+        limit: { type: "number", minimum: 1, maximum: 50, description: "Max results (default 20)" },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "files_list",
+    description: "List files in a directory. Defaults to user's home directory if no path given.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Directory path (default: home)" },
+        showHidden: { type: "boolean", description: "Include hidden files" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "files_open",
+    description: "Open a file or folder with the default application.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Path to file or folder" },
+      },
+      required: ["path"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "files_read_text",
+    description: "Read text content from a file. Works with txt, md, json, csv, and similar text files. Limited to first 10KB.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Path to text file" },
+      },
+      required: ["path"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "apps_list",
+    description: "List installed applications on macOS.",
+    parameters: {
+      type: "object",
+      properties: {
+        includeRunning: { type: "boolean", description: "Also list currently running apps" },
+      },
       additionalProperties: false,
     },
   },
@@ -667,6 +759,14 @@ ipcMain.handle("realtime:get-config", async () => {
 ipcMain.handle("app:restart", () => {
   app.relaunch();
   app.exit(0);
+});
+
+ipcMain.handle("mode:get", () => currentMode);
+
+ipcMain.handle("mode:set", (_event, mode) => {
+  currentMode = mode === "computer" ? "computer" : "display";
+  setWindowMode(currentMode);
+  return { ok: true, mode: currentMode };
 });
 
 ipcMain.handle("file:select", async () => {
@@ -1049,44 +1149,433 @@ ipcMain.handle("tools:execute", async (_event, toolCall) => {
     }
 
     if (name === "ui_inspect") {
-      // Check accessibility first
       const accessCheck = await checkAccessibilityPermission();
       if (!accessCheck.granted) {
         return {
           ok: false,
           permissionDenied: true,
           error: "Accessibility permission required for UI inspection.",
-          artifact: {
-            title: "Permission Required",
-            kind: "markdown",
-            content: accessibilityFixSteps(),
-          },
+          artifact: { title: "Permission Required", kind: "markdown", content: accessibilityFixSteps() },
         };
       }
       
-      const script = `tell application "System Events"
-set frontApp to first application process whose frontmost is true
-set appName to name of frontApp
-set windowName to ""
-try
-  set windowName to name of front window of frontApp
-end try
-set roleSummary to ""
-try
-  set roleSummary to value of attribute "AXRoleDescription" of front window of frontApp
-end try
-return "App: " & appName & linefeed & "Window: " & windowName & linefeed & "Role: " & roleSummary
+      const targetApp = args.appName ? appleScriptString(args.appName) : null;
+      const focus = args.focus || "summary";
+      
+      let script;
+      if (focus === "tabs") {
+        script = targetApp
+          ? `tell application "System Events"
+tell process ${targetApp}
+  set tabList to {}
+  try
+    set winList to windows
+    repeat with w in winList
+      try
+        set tabGroup to first tab group of w
+        set tabs to radio buttons of tabGroup
+        repeat with t in tabs
+          set end of tabList to name of t
+        end repeat
+      end try
+    end repeat
+  end try
+  return "Tabs: " & (tabList as text)
+end tell
+end tell`
+          : `tell application "System Events"
+tell (first process whose frontmost is true)
+  set appName to name
+  set tabList to {}
+  try
+    set tabGroup to first tab group of front window
+    set tabs to radio buttons of tabGroup
+    repeat with t in tabs
+      set end of tabList to name of t
+    end repeat
+  end try
+  return "App: " & appName & linefeed & "Tabs: " & (tabList as text)
+end tell
 end tell`;
-      const { stdout } = await execFileAsync("osascript", ["-e", script]);
-      return {
-        ok: true,
-        summary: stdout.trim(),
-        artifact: {
-          title: "UI Inspect",
-          kind: "text",
-          content: stdout.trim(),
-        },
-      };
+      } else if (focus === "list") {
+        script = targetApp
+          ? `tell application "System Events"
+tell process ${targetApp}
+  set itemList to {}
+  set itemCount to 0
+  try
+    set allRows to rows of table 1 of scroll area 1 of front window
+    repeat with r in allRows
+      if itemCount < 30 then
+        try
+          set rowText to value of static text 1 of r
+          set end of itemList to rowText
+          set itemCount to itemCount + 1
+        end try
+      end if
+    end repeat
+  end try
+  try
+    set allItems to UI elements of scroll area 1 of front window
+    repeat with el in allItems
+      if itemCount < 30 then
+        try
+          set elName to name of el
+          if elName is not "" and elName is not missing value then
+            set end of itemList to elName
+            set itemCount to itemCount + 1
+          end if
+        end try
+      end if
+    end repeat
+  end try
+  return "Items: " & (itemList as text)
+end tell
+end tell`
+          : `tell application "System Events"
+tell (first process whose frontmost is true)
+  set appName to name
+  set itemList to {}
+  set itemCount to 0
+  try
+    repeat with w in windows
+      try
+        set allRows to rows of table 1 of scroll area 1 of w
+        repeat with r in allRows
+          if itemCount < 30 then
+            try
+              set rowText to value of static text 1 of r
+              set end of itemList to rowText
+              set itemCount to itemCount + 1
+            end try
+          end if
+        end repeat
+      end try
+    end repeat
+  end try
+  return "App: " & appName & linefeed & "Items: " & (itemList as text)
+end tell
+end tell`;
+      } else if (focus === "deep") {
+        script = targetApp
+          ? `tell application "System Events"
+tell process ${targetApp}
+  set uiDesc to ""
+  try
+    set w to front window
+    set uiDesc to "Window: " & (name of w) & linefeed
+    set allElements to entire contents of w
+    set elCount to 0
+    repeat with el in allElements
+      if elCount < 50 then
+        try
+          set elRole to role of el
+          set elName to name of el
+          if elName is not "" and elName is not missing value then
+            set uiDesc to uiDesc & elRole & ": " & elName & linefeed
+            set elCount to elCount + 1
+          end if
+        end try
+      end if
+    end repeat
+  end try
+  return uiDesc
+end tell
+end tell`
+          : `tell application "System Events"
+tell (first process whose frontmost is true)
+  set appName to name
+  set uiDesc to "App: " & appName & linefeed
+  try
+    set w to front window
+    set uiDesc to uiDesc & "Window: " & (name of w) & linefeed
+    set allElements to entire contents of w
+    set elCount to 0
+    repeat with el in allElements
+      if elCount < 50 then
+        try
+          set elRole to role of el
+          set elName to name of el
+          if elName is not "" and elName is not missing value then
+            set uiDesc to uiDesc & elRole & ": " & elName & linefeed
+            set elCount to elCount + 1
+          end if
+        end try
+      end if
+    end repeat
+  end try
+  return uiDesc
+end tell
+end tell`;
+      } else {
+        script = targetApp
+          ? `tell application "System Events"
+tell process ${targetApp}
+  set appName to name
+  set windowName to ""
+  try
+    set windowName to name of front window
+  end try
+  return "App: " & appName & linefeed & "Window: " & windowName
+end tell
+end tell`
+          : `tell application "System Events"
+tell (first process whose frontmost is true)
+  set appName to name
+  set windowName to ""
+  try
+    set windowName to name of front window
+  end try
+  return "App: " & appName & linefeed & "Window: " & windowName
+end tell
+end tell`;
+      }
+      
+      try {
+        const { stdout } = await execFileAsync("osascript", ["-e", script]);
+        return {
+          ok: true,
+          summary: stdout.trim(),
+          artifact: { title: "UI Inspect", kind: "text", content: stdout.trim() },
+        };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes("not allowed") || errorMsg.includes("assistive access")) {
+          return {
+            ok: false,
+            permissionDenied: true,
+            error: "Accessibility permission required.",
+            artifact: { title: "Permission Required", kind: "markdown", content: accessibilityFixSteps() },
+          };
+        }
+        return { ok: false, error: errorMsg };
+      }
+    }
+    
+    if (name === "ui_find") {
+      const accessCheck = await checkAccessibilityPermission();
+      if (!accessCheck.granted) {
+        return {
+          ok: false,
+          permissionDenied: true,
+          error: "Accessibility permission required.",
+          artifact: { title: "Permission Required", kind: "markdown", content: accessibilityFixSteps() },
+        };
+      }
+      
+      const query = String(args.query || "").toLowerCase();
+      const targetApp = args.appName ? appleScriptString(args.appName) : null;
+      
+      const script = targetApp
+        ? `tell application "System Events"
+tell process ${targetApp}
+  set matches to {}
+  set matchCount to 0
+  try
+    set allElements to entire contents of front window
+    repeat with el in allElements
+      if matchCount < 30 then
+        try
+          set elName to name of el
+          set elRole to role of el
+          if elName is not missing value and elName is not "" then
+            set lowerName to do shell script "echo " & quoted form of elName & " | tr '[:upper:]' '[:lower:]'"
+            if lowerName contains "${query.replace(/"/g, '\\"')}" then
+              set end of matches to elRole & ": " & elName
+              set matchCount to matchCount + 1
+            end if
+          end if
+        end try
+      end if
+    end repeat
+  end try
+  return matches as text
+end tell
+end tell`
+        : `tell application "System Events"
+tell (first process whose frontmost is true)
+  set appName to name
+  set matches to {}
+  set matchCount to 0
+  try
+    set allElements to entire contents of front window
+    repeat with el in allElements
+      if matchCount < 30 then
+        try
+          set elName to name of el
+          set elRole to role of el
+          if elName is not missing value and elName is not "" then
+            set lowerName to do shell script "echo " & quoted form of elName & " | tr '[:upper:]' '[:lower:]'"
+            if lowerName contains "${query.replace(/"/g, '\\"')}" then
+              set end of matches to elRole & ": " & elName
+              set matchCount to matchCount + 1
+            end if
+          end if
+        end try
+      end if
+    end repeat
+  end try
+  return "App: " & appName & linefeed & (matches as text)
+end tell
+end tell`;
+      
+      try {
+        const { stdout } = await execFileAsync("osascript", ["-e", script]);
+        const results = stdout.trim();
+        return {
+          ok: true,
+          results: results || "No matches found",
+          artifact: { title: `UI Find: ${args.query}`, kind: "text", content: results || "No UI elements matched the query." },
+        };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    
+    if (name === "files_search") {
+      const query = String(args.query || "");
+      const kind = args.kind || "any";
+      const limit = Math.min(50, Math.max(1, Number(args.limit) || 20));
+      
+      let kindFilter = "";
+      if (kind === "document") kindFilter = "-onlyin ~/Documents -onlyin ~/Desktop";
+      else if (kind === "image") kindFilter = "kind:image";
+      else if (kind === "pdf") kindFilter = "kind:pdf";
+      else if (kind === "folder") kindFilter = "kind:folder";
+      
+      const searchCmd = `mdfind -limit ${limit} ${kindFilter ? kindFilter + " " : ""}'${query.replace(/'/g, "'\\''")}'`;
+      
+      try {
+        const { stdout } = await execFileAsync("sh", ["-c", searchCmd]);
+        const files = stdout.trim().split("\n").filter(Boolean).slice(0, limit);
+        const formatted = files.length > 0
+          ? files.map((f) => `- ${f}`).join("\n")
+          : "No files found matching your search.";
+        return {
+          ok: true,
+          files,
+          count: files.length,
+          artifact: { title: `File Search: ${query}`, kind: "markdown", content: `## Found ${files.length} file(s)\n\n${formatted}` },
+        };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    
+    if (name === "files_list") {
+      const targetPath = args.path ? path.resolve(String(args.path)) : process.env.HOME;
+      const showHidden = args.showHidden === true;
+      
+      const safeRoots = [process.env.HOME, "/Applications", "/tmp"];
+      const isSafe = safeRoots.some((root) => targetPath.startsWith(root));
+      if (!isSafe) {
+        return { ok: false, error: "Access limited to home directory, Applications, and /tmp for safety." };
+      }
+      
+      try {
+        const entries = await fs.readdir(targetPath, { withFileTypes: true });
+        const items = entries
+          .filter((e) => showHidden || !e.name.startsWith("."))
+          .slice(0, 100)
+          .map((e) => ({
+            name: e.name,
+            type: e.isDirectory() ? "folder" : "file",
+            path: path.join(targetPath, e.name),
+          }));
+        
+        const formatted = items.map((i) => `- ${i.type === "folder" ? "📁" : "📄"} ${i.name}`).join("\n");
+        return {
+          ok: true,
+          path: targetPath,
+          items,
+          artifact: { title: `Files: ${targetPath}`, kind: "markdown", content: `## ${targetPath}\n\n${formatted || "Empty directory"}` },
+        };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    
+    if (name === "files_open") {
+      const targetPath = path.resolve(String(args.path || ""));
+      try {
+        await execFileAsync("open", [targetPath]);
+        return { ok: true, message: `Opened ${targetPath}` };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    
+    if (name === "files_read_text") {
+      const targetPath = path.resolve(String(args.path || ""));
+      const ext = path.extname(targetPath).toLowerCase();
+      const textExts = [".txt", ".md", ".json", ".csv", ".js", ".ts", ".jsx", ".tsx", ".py", ".html", ".css", ".xml", ".yaml", ".yml", ".sh", ".env", ".log"];
+      
+      if (!textExts.includes(ext) && ext !== "") {
+        return { ok: false, error: `Unsupported file type: ${ext}. Use for text-based files only.` };
+      }
+      
+      const safeRoots = [process.env.HOME, "/Applications", "/tmp"];
+      const isSafe = safeRoots.some((root) => targetPath.startsWith(root));
+      if (!isSafe) {
+        return { ok: false, error: "Access limited to home directory for safety." };
+      }
+      
+      try {
+        const stat = await fs.stat(targetPath);
+        if (stat.size > 10240) {
+          const content = await fs.readFile(targetPath, "utf8");
+          const truncated = content.slice(0, 10240) + "\n\n... (truncated at 10KB)";
+          return {
+            ok: true,
+            path: targetPath,
+            truncated: true,
+            artifact: { title: path.basename(targetPath), kind: "code", content: truncated },
+          };
+        }
+        const content = await fs.readFile(targetPath, "utf8");
+        return {
+          ok: true,
+          path: targetPath,
+          content,
+          artifact: { title: path.basename(targetPath), kind: "code", content },
+        };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    
+    if (name === "apps_list") {
+      const includeRunning = args.includeRunning === true;
+      
+      try {
+        const { stdout: appsOutput } = await execFileAsync("ls", ["/Applications"]);
+        const apps = appsOutput.trim().split("\n").filter((a) => a.endsWith(".app")).map((a) => a.replace(".app", ""));
+        
+        let runningApps = [];
+        if (includeRunning) {
+          const script = `tell application "System Events" to get name of every process whose background only is false`;
+          const { stdout: runningOutput } = await execFileAsync("osascript", ["-e", script]);
+          runningApps = runningOutput.trim().split(", ");
+        }
+        
+        const formatted = apps.slice(0, 60).map((a) => {
+          const running = runningApps.includes(a) ? " 🟢" : "";
+          return `- ${a}${running}`;
+        }).join("\n");
+        
+        const runningSection = includeRunning && runningApps.length > 0
+          ? `\n\n### Currently Running\n${runningApps.map((a) => `- 🟢 ${a}`).join("\n")}`
+          : "";
+        
+        return {
+          ok: true,
+          apps,
+          runningApps,
+          artifact: { title: "Installed Apps", kind: "markdown", content: `## Applications\n\n${formatted}${runningSection}` },
+        };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
     }
     
     if (name === "computer_check_permissions") {

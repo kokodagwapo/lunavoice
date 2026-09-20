@@ -6,6 +6,7 @@ import {
   MessageSquare, Brain, Plug,
   Paperclip, Sparkles, Shield, Calculator, Megaphone,
   Activity, Handshake, UserPlus, Check, ChevronLeft, ChevronRight,
+  Monitor, MonitorOff,
 } from "lucide-react";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LunaFace } from "./components/LunaFace";
@@ -51,6 +52,7 @@ export default function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(true);
+  const [computerMode, setComputerMode] = useState(false);
   const [theme, setTheme] = useState<UiTheme>(() => {
     if (typeof window === "undefined") return "dark";
     return window.localStorage.getItem("luna-theme") === "light" ? "light" : "dark";
@@ -68,11 +70,26 @@ export default function App() {
   const isConnected = connectionState === "connected";
   const isConnecting = connectionState === "connecting";
 
-  useEffect(() => { loadAgents(); }, []);
+  useEffect(() => { loadAgents(); loadMode(); }, []);
   useEffect(() => { if (activeAgent) loadConversations(); }, [activeAgent?.id]);
   useEffect(() => {
     window.localStorage.setItem("luna-theme", theme);
   }, [theme]);
+
+  async function loadMode() {
+    try {
+      const mode = await window.luna.getMode();
+      setComputerMode(mode === "computer");
+    } catch (e) { console.error(e); }
+  }
+
+  async function toggleComputerMode() {
+    try {
+      const newMode = computerMode ? "display" : "computer";
+      const result = await window.luna.setMode(newMode);
+      if (result.ok) setComputerMode(result.mode === "computer");
+    } catch (e) { console.error(e); }
+  }
 
   async function loadAgents() {
     try {
@@ -404,12 +421,41 @@ export default function App() {
           <div className="stage-copy">
             <p className="stage-kicker">
               <Sparkles size={14} strokeWidth={1.5} />
-              {stageStatus}
+              {computerMode ? "Computer Mode" : stageStatus}
+              {computerMode && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#10b981", marginLeft: 6, animation: "pulse 2s infinite" }} />}
             </p>
             <h1>What&apos;s on your mind?</h1>
             <p className="stage-subtitle">
-              {isConnected ? "Speak or type — Luna is listening." : "Start a call or send a message below."}
+              {computerMode 
+                ? "Computer control enabled. Say what you want me to do."
+                : isConnected 
+                  ? "Speak or type — Luna is listening." 
+                  : "Start a call or send a message below."}
             </p>
+            <button 
+              type="button"
+              onClick={() => void toggleComputerMode()}
+              className={`mode-toggle ${computerMode ? "mode-toggle-active" : ""}`}
+              title={computerMode ? "Switch to Luna mode" : "Switch to Computer mode"}
+              style={{
+                marginTop: 12,
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: computerMode ? "1px solid rgba(16,185,129,0.4)" : "1px solid var(--luna-border)",
+                background: computerMode ? "rgba(16,185,129,0.15)" : "transparent",
+                color: computerMode ? "#10b981" : "var(--luna-text-muted)",
+                fontSize: 12,
+                fontWeight: 500,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              {computerMode ? <Monitor size={14} /> : <MonitorOff size={14} />}
+              {computerMode ? "Computer Mode On" : "Enable Computer Mode"}
+            </button>
           </div>
 
           <form
