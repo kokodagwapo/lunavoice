@@ -52,6 +52,19 @@ export const lunaBrowserStub: typeof window.luna = {
     window.location.reload();
   },
 
+  minimize: async (): Promise<void> => {
+    console.log("[Browser Stub] minimize - not available in browser");
+  },
+
+  maximize: async (): Promise<void> => {
+    console.log("[Browser Stub] maximize - not available in browser");
+  },
+
+  close: async (): Promise<void> => {
+    console.log("[Browser Stub] close - not available in browser");
+    window.close();
+  },
+
   selectFiles: async (): Promise<string[]> => {
     console.log("[Browser Stub] selectFiles - not available in browser");
     return [];
@@ -60,6 +73,15 @@ export const lunaBrowserStub: typeof window.luna = {
   uploadFile: async (filePath: string): Promise<UploadedFile> => {
     console.log("[Browser Stub] uploadFile:", filePath);
     return { path: filePath, name: filePath.split("/").pop() || "file" };
+  },
+
+  getMode: async (): Promise<"display" | "computer"> => {
+    return "display";
+  },
+
+  setMode: async (mode: "display" | "computer"): Promise<{ ok: boolean; mode: "display" | "computer" }> => {
+    console.log("[Browser Stub] setMode:", mode);
+    return { ok: true, mode: "display" };
   },
 
   listConnectors: async (): Promise<ConnectorManifest[]> => {

@@ -117,8 +117,15 @@ declare global {
       executeTool: (toolCall: LunaToolCall) => Promise<LunaToolResult>;
       getToolSpecs: () => Promise<LunaToolSpec[]>;
       restart: () => Promise<void>;
+      // Window control APIs
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      close: () => Promise<void>;
       selectFiles: () => Promise<string[]>;
       uploadFile: (filePath: string) => Promise<UploadedFile>;
+      // Mode APIs
+      getMode: () => Promise<"display" | "computer">;
+      setMode: (mode: "display" | "computer") => Promise<{ ok: boolean; mode: "display" | "computer" }>;
       listConnectors: () => Promise<ConnectorManifest[]>;
       enableConnector: (id: string) => Promise<{ ok: boolean }>;
       disableConnector: (id: string) => Promise<{ ok: boolean }>;
