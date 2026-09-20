@@ -6,7 +6,7 @@ import {
   MessageSquare, Brain, Plug,
   Paperclip, Sparkles, Shield, Calculator, Megaphone,
   Activity, Handshake, UserPlus, Check, ChevronLeft, ChevronRight,
-  Monitor, MonitorOff,
+  Monitor, MonitorOff, Minus, Square,
 } from "lucide-react";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { LunaFace } from "./components/LunaFace";
@@ -304,6 +304,16 @@ export default function App() {
           </button>
           <button type="button" className="icon-btn" onClick={() => void handleRestart()} title="Restart" aria-label="Restart">
             <RotateCcw size={16} strokeWidth={1.5} />
+          </button>
+          <span style={{ width: 1, height: 16, background: "var(--luna-border)", margin: "0 4px" }} />
+          <button type="button" className="icon-btn" onClick={() => void window.luna.minimize()} title="Minimize" aria-label="Minimize">
+            <Minus size={16} strokeWidth={1.5} />
+          </button>
+          <button type="button" className="icon-btn" onClick={() => void window.luna.maximize()} title="Maximize" aria-label="Maximize">
+            <Square size={14} strokeWidth={1.5} />
+          </button>
+          <button type="button" className="icon-btn icon-btn-close" onClick={() => void window.luna.close()} title="Close" aria-label="Close">
+            <X size={16} strokeWidth={1.5} />
           </button>
         </div>
       </header>

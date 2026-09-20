@@ -52,6 +52,19 @@ export const lunaBrowserStub: typeof window.luna = {
     window.location.reload();
   },
 
+  minimize: async (): Promise<void> => {
+    console.log("[Browser Stub] minimize - not available in browser");
+  },
+
+  maximize: async (): Promise<void> => {
+    console.log("[Browser Stub] maximize - not available in browser");
+  },
+
+  close: async (): Promise<void> => {
+    console.log("[Browser Stub] close - not available in browser");
+    window.close();
+  },
+
   selectFiles: async (): Promise<string[]> => {
     console.log("[Browser Stub] selectFiles - not available in browser");
     return [];

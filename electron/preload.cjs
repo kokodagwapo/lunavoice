@@ -5,6 +5,10 @@ contextBridge.exposeInMainWorld("luna", {
   executeTool: (toolCall) => ipcRenderer.invoke("tools:execute", toolCall),
   getToolSpecs: () => ipcRenderer.invoke("tools:list"),
   restart: () => ipcRenderer.invoke("app:restart"),
+  // Window control APIs
+  minimize: () => ipcRenderer.invoke("window:minimize"),
+  maximize: () => ipcRenderer.invoke("window:maximize"),
+  close: () => ipcRenderer.invoke("window:close"),
   selectFiles: () => ipcRenderer.invoke("file:select"),
   uploadFile: (filePath) => ipcRenderer.invoke("file:upload", filePath),
   // Mode APIs

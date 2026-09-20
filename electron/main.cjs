@@ -667,6 +667,8 @@ async function createWindow() {
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
+    minimizable: true,
+    maximizable: true,
     icon: nativeImage.createEmpty(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -759,6 +761,29 @@ ipcMain.handle("realtime:get-config", async () => {
 ipcMain.handle("app:restart", () => {
   app.relaunch();
   app.exit(0);
+});
+
+// Window control handlers
+ipcMain.handle("window:minimize", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.minimize();
+  }
+});
+
+ipcMain.handle("window:maximize", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.handle("window:close", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close();
+  }
 });
 
 ipcMain.handle("mode:get", () => currentMode);

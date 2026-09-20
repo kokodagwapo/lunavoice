@@ -117,6 +117,10 @@ declare global {
       executeTool: (toolCall: LunaToolCall) => Promise<LunaToolResult>;
       getToolSpecs: () => Promise<LunaToolSpec[]>;
       restart: () => Promise<void>;
+      // Window control APIs
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      close: () => Promise<void>;
       selectFiles: () => Promise<string[]>;
       uploadFile: (filePath: string) => Promise<UploadedFile>;
       // Mode APIs

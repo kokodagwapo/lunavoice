@@ -244,8 +244,10 @@ input:focus-visible {
   transform: scale(0.98);
 }
 
-.icon-btn-quit:hover {
+.icon-btn-quit:hover,
+.icon-btn-close:hover {
   color: #f87171;
+  background: rgba(248, 113, 113, 0.15);
   border-color: rgba(248, 113, 113, 0.35);
 }
 
